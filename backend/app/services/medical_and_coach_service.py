@@ -496,6 +496,7 @@ def answer_coach_question(
     comp_name = user_context.get("next_competition_name", "Media Maratón de Bogotá")
 
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    candidate_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
     if api_key and not api_key.startswith("your-"):
         try:
             from google import genai  # type: ignore
@@ -510,21 +511,25 @@ def answer_coach_question(
                 f"Próxima competencia={comp_name}.\n\n"
                 f"Pregunta del usuario: {question}"
             )
-            resp = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-            )
-            if resp and resp.text:
-                return {
-                    "answer": resp.text.strip(),
-                    "context_metrics_used": [
-                        f"% Grasa: {bf_current}% → {bf_target}%",
-                        f"Masa Magra: {lbm_kg} kg",
-                        f"Meta Proteína: {protein_g} g/día",
-                        f"ACWR Carga: {acwr}",
-                    ],
-                    "engine": "GEMINI_2_5_FLASH_COACH",
-                }
+            for m in candidate_models:
+                try:
+                    resp = client.models.generate_content(
+                        model=m,
+                        contents=prompt,
+                    )
+                    if resp and resp.text:
+                        return {
+                            "answer": resp.text.strip(),
+                            "context_metrics_used": [
+                                f"% Grasa: {bf_current}% → {bf_target}%",
+                                f"Masa Magra: {lbm_kg} kg",
+                                f"Meta Proteína: {protein_g} g/día",
+                                f"ACWR Carga: {acwr}",
+                            ],
+                            "engine": f"GEMINI_{m.upper().replace('-', '_').replace('.', '_')}",
+                        }
+                except Exception:
+                    continue
         except Exception:
             pass
 

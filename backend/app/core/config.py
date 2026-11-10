@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     GEMINI_API_KEY: str = ""
     GEMINI_VISION_MODEL: str = "gemini-2.5-flash"
+    # Lista de modelos de Gemini en orden de prioridad con fallback automático
+    GEMINI_FALLBACK_MODELS: str = "gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash"
 
     # Autenticación real (Supabase Auth: email / Google / Apple).
     # En producción (Render) poner REQUIRE_AUTH=true: se desactiva el usuario demo por defecto.

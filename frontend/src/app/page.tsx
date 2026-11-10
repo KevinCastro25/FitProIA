@@ -60,219 +60,34 @@ export default function FitProIAPwaApp() {
   const [pendingOfflineCount, setPendingOfflineCount] = useState<number>(0);
 
   // Estado de Dominio (Sincronizado con Servidor FastAPI/Supabase + IndexedDB)
+  // Inicia limpio desde 0
   const [profile, setProfile] = useState<UserProfileData>({
     sex: "M",
-    age: 29,
-    height_cm: 176,
-    current_weight_kg: 76.4,
-    current_body_fat_pct: 15.8,
-    bf_measurement_method: "PLIEGUES",
-    target_body_fat_pct: 11.5,
-    activity_level: "ACTIVE",
+    age: 28,
+    height_cm: 170,
+    current_weight_kg: 70.0,
+    current_body_fat_pct: null,
+    bf_measurement_method: "ESTIMACION_VISUAL",
+    target_body_fat_pct: 12.0,
+    activity_level: "MODERATE",
     target_weekly_loss_pct: 0.5,
     carb_cycling_enabled: true,
-    protein_g_per_kg: 2.2,
+    protein_g_per_kg: 2.0,
     calorie_backfill_ratio: 0.6,
-    injuries_or_restrictions:
-      "Cuidar carga excéntrica de tendón rotuliano tras fondos >18 km",
+    injuries_or_restrictions: "",
     primary_sport_focus: "HYBRID_GYM_RUNNING",
   });
 
   const [foods, setFoods] = useState<FoodCatalogItem[]>(INITIAL_COLOMBIAN_FOODS);
-  const [recipes, setRecipes] = useState<RecipeItem[]>([
-    {
-      id: "rec-bowl-paisa",
-      name: "Bowl Paisa Fit Post-Entreno (Pollo + Fríjol + Arepa + Aguacate)",
-      servings: 1,
-      total_weight_g: 455,
-      kcal_per_serving: 715,
-      protein_g_per_serving: 68.5,
-      carbs_g_per_serving: 64.0,
-      fat_g_per_serving: 19.2,
-      fiber_g_per_serving: 13.5,
-      ingredients: [],
-    },
-  ]);
-
-  const [meals, setMeals] = useState<MealLogItem[]>([
-    {
-      id: "m-seed-1",
-      log_date: todayStr,
-      meal_type: "DESAYUNO",
-      custom_food_name:
-        "Huevos pericos (3 und) + Arepa de maíz blanco asada + Quesito",
-      quantity_g: 330,
-      portion_description: "1 desayuno completo CO",
-      kcal: 580,
-      protein_g: 36.0,
-      carbs_g: 42.0,
-      fat_g: 28.0,
-      fiber_g: 3.5,
-    },
-    {
-      id: "m-seed-2",
-      log_date: todayStr,
-      meal_type: "ALMUERZO",
-      custom_food_name:
-        "Pechuga a la plancha (200g) + Arroz blanco + Fríjoles rojos + Aguacate Hass",
-      quantity_g: 520,
-      portion_description: "1 plato almuerzo fit CO",
-      kcal: 810,
-      protein_g: 76.0,
-      carbs_g: 78.0,
-      fat_g: 21.0,
-      fiber_g: 14.2,
-    },
-    {
-      id: "m-seed-3",
-      log_date: todayStr,
-      meal_type: "POST_ENTRENO",
-      custom_food_name:
-        "Proteína Whey Isolate (1.5 scoops) + Banano Urabá + Bocadillo veleño",
-      quantity_g: 195,
-      portion_description: "Recuperación post-entreno",
-      kcal: 380,
-      protein_g: 40.5,
-      carbs_g: 52.0,
-      fat_g: 1.5,
-      fiber_g: 4.0,
-    },
-  ]);
-
-  const [workouts, setWorkouts] = useState<WorkoutSessionItem[]>([
-    {
-      id: "w-seed-1",
-      session_date: todayStr,
-      title: "Fuerza Tren Superior + Core Hyrox",
-      modality: "STRENGTH",
-      duration_minutes: 62,
-      session_rpe: 8,
-      internal_load_au: 496,
-      estimated_kcal_burned: 415,
-      distance_km: 0,
-      avg_pace_sec_per_km: 0,
-      avg_hr_bpm: 138,
-      elevation_gain_m: 0,
-      strength_sets: [
-        {
-          exercise_name: "Press Banca Plano con Barra",
-          muscle_group: "PECHO",
-          set_number: 1,
-          reps: 6,
-          weight_kg: 90,
-          rpe: 8.5,
-        },
-      ],
-      notes: "Fuerza intacta en press banca durante el bloque de definición.",
-    },
-    {
-      id: "w-seed-2",
-      session_date: todayStr,
-      title: "Rodaje Controlado 6K Zona 2",
-      modality: "RUNNING",
-      duration_minutes: 31,
-      session_rpe: 6,
-      internal_load_au: 186,
-      estimated_kcal_burned: 445,
-      distance_km: 6.0,
-      avg_pace_sec_per_km: 310,
-      avg_hr_bpm: 146,
-      elevation_gain_m: 45,
-      strength_sets: [],
-      notes: "Oxidación de grasas aeróbica post-pesas.",
-    },
-  ]);
-
-  const [waterMl, setWaterMl] = useState<number>(2250);
-  const [stepsCount, setStepsCount] = useState<number>(9450);
-  const [sleepHours, setSleepHours] = useState<number>(7.4);
-  const [restingHrBpm, setRestingHrBpm] = useState<number>(51);
-  const [hrvMs, setHrvMs] = useState<number>(68);
-
-  const [checkins, setCheckins] = useState<BodyCheckinItem[]>([
-    {
-      id: "chk-1",
-      checkin_date: "2026-10-13",
-      weight_kg: 77.5,
-      trend_weight_kg: 77.5,
-      body_fat_pct: 17.4,
-      bf_method: "PLIEGUES",
-      measurement_conditions: "AYUNAS_MANANA",
-      lean_mass_kg: 64.01,
-      fat_mass_kg: 13.49,
-      waist_cm: 82.5,
-      hip_cm: 96.0,
-      chest_cm: 103.0,
-      arm_cm: 37.5,
-      thigh_cm: 58.0,
-      energy_level: 4,
-      sleep_quality: 4,
-      strength_performance: 4,
-      notes: "Inicio del bloque base",
-      assessment_status: "LINEA_BASE_INICIAL",
-      assessment_summary:
-        "Línea base inicial: 64.01 kg de masa magra y 17.4% de grasa corporal.",
-      recommended_action: "Iniciar déficit moderado con 2.2 g/kg de proteína.",
-      calorie_adjustment_kcal: 0,
-      method_margin_warning:
-        "Pliegues Cutáneos (ISAK): margen ±2-3%. Medir siempre en ayunas.",
-    },
-    {
-      id: "chk-2",
-      checkin_date: "2026-10-27",
-      weight_kg: 76.9,
-      trend_weight_kg: 77.1,
-      body_fat_pct: 16.6,
-      bf_method: "PLIEGUES",
-      measurement_conditions: "AYUNAS_MANANA",
-      lean_mass_kg: 64.13,
-      fat_mass_kg: 12.77,
-      waist_cm: 81.2,
-      hip_cm: 95.5,
-      chest_cm: 103.2,
-      arm_cm: 37.6,
-      thigh_cm: 58.2,
-      energy_level: 4,
-      sleep_quality: 4,
-      strength_performance: 5,
-      notes: "Mayor definición abdominal",
-      assessment_status: "OPTIMO_DEFINICION",
-      assessment_summary:
-        "Bajada de -0.8% de grasa y -1.3 cm de cintura ganando +0.12 kg de masa magra.",
-      recommended_action: "Mantener plan calórico sin cambios.",
-      calorie_adjustment_kcal: 0,
-      method_margin_warning:
-        "Pliegues Cutáneos (ISAK): margen ±2-3%. Medir siempre en ayunas.",
-    },
-    {
-      id: "chk-3",
-      checkin_date: "2026-11-09",
-      weight_kg: 76.4,
-      trend_weight_kg: 76.6,
-      body_fat_pct: 15.8,
-      bf_method: "PLIEGUES",
-      measurement_conditions: "AYUNAS_MANANA",
-      lean_mass_kg: 64.33,
-      fat_mass_kg: 12.07,
-      waist_cm: 79.8,
-      hip_cm: 95.0,
-      chest_cm: 103.5,
-      arm_cm: 37.8,
-      thigh_cm: 58.4,
-      energy_level: 4,
-      sleep_quality: 4,
-      strength_performance: 5,
-      notes: "Mejor ritmo en 10K y fuerza intacta",
-      assessment_status: "RECOMPOSICION_ACTIVA",
-      assessment_summary:
-        "¡Recomposición corporal ideal! En 4 semanas perdiste 1.42 kg de grasa pura (-2.7 cm de cintura) mientras ganaste +0.32 kg de masa muscular magra.",
-      recommended_action:
-        "No toques nada: estás oxidando grasa y ganando tejido magro simultáneamente.",
-      calorie_adjustment_kcal: 0,
-      method_margin_warning:
-        "Pliegues Cutáneos (ISAK): margen ±2-3%. Medir siempre en ayunas.",
-    },
-  ]);
+  const [recipes, setRecipes] = useState<RecipeItem[]>([]);
+  const [meals, setMeals] = useState<MealLogItem[]>([]);
+  const [workouts, setWorkouts] = useState<WorkoutSessionItem[]>([]);
+  const [waterMl, setWaterMl] = useState<number>(0);
+  const [stepsCount, setStepsCount] = useState<number>(0);
+  const [sleepHours, setSleepHours] = useState<number>(7.5);
+  const [restingHrBpm, setRestingHrBpm] = useState<number>(55);
+  const [hrvMs, setHrvMs] = useState<number>(65);
+  const [checkins, setCheckins] = useState<BodyCheckinItem[]>([]);
 
   const targets = computeNutritionTargets(profile);
 
@@ -669,12 +484,6 @@ export default function FitProIAPwaApp() {
                   Meta: {profile.target_body_fat_pct}% Grasa
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">
-                Masa Magra: <strong>{targets.lean_body_mass_kg} kg</strong> •{" "}
-                {targets.formula_used === "KATCH_MCARDLE"
-                  ? "Katch-McArdle Activo"
-                  : "Mifflin-St Jeor"}
-              </p>
             </div>
           </div>
 
@@ -934,40 +743,27 @@ export default function FitProIAPwaApp() {
                 </div>
               </div>
 
-              {/* Alerta Inteligente de Proteína */}
-              <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 text-xs">
-                  {remainingProteinG > 20 ? (
-                    <>
-                      <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
-                      <span className="text-slate-200">
-                        Te faltan{" "}
-                        <strong className="text-emerald-400">
-                          {remainingProteinG}g de proteína
-                        </strong>{" "}
-                        hoy para alcanzar el rango óptimo ({profile.protein_g_per_kg}{" "}
-                        g/kg). Sugerencia: 150g de pechuga o 1 vaso de yogur griego +
-                        Whey.
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                      <span className="text-emerald-300 font-semibold">
-                        ¡Meta de síntesis proteica cubierta hoy! Tu masa muscular está
-                        protegida.
-                      </span>
-                    </>
-                  )}
+              {/* Resumen rápido de proteína */}
+              {remainingProteinG > 20 && (
+                <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <span className="text-slate-200">
+                      Te faltan{" "}
+                      <strong className="text-emerald-400">
+                        {remainingProteinG}g de proteína
+                      </strong>{" "}
+                      para la meta del día.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("comidas")}
+                    className="shrink-0 rounded-xl bg-emerald-500/20 border border-emerald-500/40 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30"
+                  >
+                    + Comida
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("comidas")}
-                  className="shrink-0 rounded-xl bg-emerald-500/20 border border-emerald-500/40 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30"
-                >
-                  + Comida
-                </button>
-              </div>
+              )}
             </section>
 
             {/* Controles Rápidos a Una Mano: Hidratación, Pasos y Resumen de Composición */}

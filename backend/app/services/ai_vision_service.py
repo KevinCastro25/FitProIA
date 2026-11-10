@@ -243,7 +243,15 @@ def analyze_plate_photo(
        heurístico colombiano y cruza con la base de datos FoodItem.
     """
     api_key = settings.GEMINI_API_KEY.strip()
-    model_name = settings.GEMINI_VISION_MODEL or "gemini-2.5-flash"
+    candidate_models = [
+        m.strip()
+        for m in (
+            getattr(settings, "GEMINI_FALLBACK_MODELS", "") or "gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash"
+        ).split(",")
+        if m.strip()
+    ]
+    if settings.GEMINI_VISION_MODEL and settings.GEMINI_VISION_MODEL not in candidate_models:
+        candidate_models.insert(0, settings.GEMINI_VISION_MODEL)
 
     # Intento con Google Gemini Multimodal API si el usuario configuró GEMINI_API_KEY
     if api_key and api_key != "tu-google-gemini-api-key" and image_base64:
@@ -258,7 +266,6 @@ def analyze_plate_photo(
             "items (lista de objetos con: name_es, estimated_grams, confidence, kcal_per_100g, "
             "protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g, fiber_g_per_100g)."
         )
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         payload = {
             "contents": [
                 {
@@ -275,27 +282,29 @@ def analyze_plate_photo(
             ],
             "generationConfig": {"responseMimeType": "application/json"},
         }
-        try:
-            with httpx.Client(timeout=12.0) as client:
-                r = client.post(url, json=payload)
-                if r.status_code == 200:
-                    candidates = r.json().get("candidates", [])
-                    if candidates:
-                        text_out = candidates[0]["content"]["parts"][0]["text"]
-                        parsed = json.loads(text_out)
-                        enriched = [
-                            _enrich_item_with_db(it, db)
-                            for it in parsed.get("items", [])
-                        ]
-                        return {
-                            "model_version": f"{model_name}-live",
-                            "dish_name": parsed.get("dish_name", "Plato Analizado con Gemini Vision"),
-                            "is_colombian_dish": bool(parsed.get("is_colombian_dish", True)),
-                            "overall_confidence": float(parsed.get("overall_confidence", 0.85)),
-                            "items": enriched,
-                        }
-        except Exception:
-            pass
+        for model_name in candidate_models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            try:
+                with httpx.Client(timeout=14.0) as client:
+                    r = client.post(url, json=payload)
+                    if r.status_code == 200:
+                        candidates = r.json().get("candidates", [])
+                        if candidates:
+                            text_out = candidates[0]["content"]["parts"][0]["text"]
+                            parsed = json.loads(text_out)
+                            enriched = [
+                                _enrich_item_with_db(it, db)
+                                for it in parsed.get("items", [])
+                            ]
+                            return {
+                                "model_version": f"{model_name}-live",
+                                "dish_name": parsed.get("dish_name", "Plato Analizado con Gemini Vision"),
+                                "is_colombian_dish": bool(parsed.get("is_colombian_dish", True)),
+                                "overall_confidence": float(parsed.get("overall_confidence", 0.85)),
+                                "items": enriched,
+                            }
+            except Exception:
+                continue
 
     # Clasificador estructurado de respaldo con prioridad en comida colombiana
     hint_lower = (user_hint or "").lower()
@@ -313,8 +322,9 @@ def analyze_plate_photo(
     overall_conf = round(max(0.60, preset["overall_confidence"] - conf_penalty), 2)
 
     enriched_items = [_enrich_item_with_db(it, db) for it in preset["items"]]
+    primary_model = candidate_models[0] if candidate_models else "gemini-2.5-flash"
     return {
-        "model_version": f"{model_name}-colombia-hybrid",
+        "model_version": f"{primary_model}-colombia-hybrid",
         "dish_name": preset["dish_name"],
         "is_colombian_dish": preset["is_colombian_dish"],
         "overall_confidence": overall_conf,

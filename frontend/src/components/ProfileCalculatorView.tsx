@@ -312,7 +312,7 @@ export function ProfileCalculatorView({
               htmlFor="prof-activity"
               className="block text-xs text-slate-300 mb-1"
             >
-              Nivel de Actividad Base
+              ¿Cuántos días a la semana entrenas?
             </label>
             <select
               id="prof-activity"
@@ -326,11 +326,11 @@ export function ProfileCalculatorView({
               }
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
             >
-              <option value="SEDENTARY">Sedentario (Oficina)</option>
-              <option value="LIGHT">Ligero (1-2 entrenos/sem)</option>
-              <option value="MODERATE">Moderado (3-4 entrenos/sem)</option>
-              <option value="ACTIVE">Activo Híbrido (Gym + Running 4-6 días)</option>
-              <option value="ATHLETE">Atleta Competencia (Doble sesión / Maratón / Hyrox)</option>
+              <option value="SEDENTARY">Poco o nada (0 a 1 día / semana)</option>
+              <option value="LIGHT">Ligero (2 a 3 días / semana)</option>
+              <option value="MODERATE">Moderado (4 a 5 días / semana)</option>
+              <option value="ACTIVE">Activo (6 o más días / semana)</option>
+              <option value="ATHLETE">Atleta competitivo (doble sesión)</option>
             </select>
           </div>
 
@@ -339,15 +339,11 @@ export function ProfileCalculatorView({
               htmlFor="prof-loss-rate"
               className="block text-xs text-slate-300 mb-1"
             >
-              Ritmo semanal deseado ({formState.target_weekly_loss_pct}% peso/sem)
+              Velocidad para bajar de grasa
             </label>
-            <input
+            <select
               id="prof-loss-rate"
               name="target_weekly_loss_pct"
-              type="range"
-              min={0.2}
-              max={1.0}
-              step={0.05}
               value={formState.target_weekly_loss_pct}
               onChange={(e) =>
                 setFormState({
@@ -355,88 +351,94 @@ export function ProfileCalculatorView({
                   target_weekly_loss_pct: Number(e.target.value),
                 })
               }
-              className="w-full"
-            />
-            <span className="text-[10px] text-slate-400">
-              Recomendado atletas: 0.4% a 0.6%/sem para no perder músculo
-            </span>
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
+            >
+              <option value={0.35}>Tranquilo (~0.3 kg / sem - Muy fácil de seguir)</option>
+              <option value={0.5}>Recomendado (~0.5 kg / sem - Protege tu músculo)</option>
+              <option value={0.8}>Rápido (~0.8 kg / sem - Mayor disciplina)</option>
+            </select>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label
-              htmlFor="prof-prot"
-              className="block text-xs text-slate-300 mb-1"
-            >
-              Meta de Proteína ({formState.protein_g_per_kg} g/kg)
-            </label>
-            <input
-              id="prof-prot"
-              name="protein_g_per_kg"
-              type="range"
-              min={1.8}
-              max={2.4}
-              step={0.1}
-              value={formState.protein_g_per_kg}
-              onChange={(e) =>
-                setFormState({
-                  ...formState,
-                  protein_g_per_kg: Number(e.target.value),
-                })
-              }
-              className="w-full"
-            />
-          </div>
+        {/* Ajustes avanzados opcionales en acordeón */}
+        <details className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-300">
+          <summary className="cursor-pointer font-bold text-slate-400 hover:text-white">
+            ⚙️ Ajustes avanzados (opcional para expertos)
+          </summary>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
+            <div>
+              <label
+                htmlFor="prof-prot"
+                className="block text-[11px] text-slate-400 mb-1"
+              >
+                Proteína ({formState.protein_g_per_kg} g por kilo de peso)
+              </label>
+              <input
+                id="prof-prot"
+                name="protein_g_per_kg"
+                type="range"
+                min={1.8}
+                max={2.4}
+                step={0.1}
+                value={formState.protein_g_per_kg}
+                onChange={(e) =>
+                  setFormState({
+                    ...formState,
+                    protein_g_per_kg: Number(e.target.value),
+                  })
+                }
+                className="w-full"
+              />
+            </div>
 
-          <div>
-            <label
-              htmlFor="prof-backfill"
-              className="block text-xs text-slate-300 mb-1"
-            >
-              Reembolso Calorías Ejercicio (
-              {Math.round(formState.calorie_backfill_ratio * 100)}%)
-            </label>
-            <input
-              id="prof-backfill"
-              name="calorie_backfill_ratio"
-              type="range"
-              min={0.4}
-              max={0.85}
-              step={0.05}
-              value={formState.calorie_backfill_ratio}
-              onChange={(e) =>
-                setFormState({
-                  ...formState,
-                  calorie_backfill_ratio: Number(e.target.value),
-                })
-              }
-              className="w-full"
-            />
-          </div>
+            <div>
+              <label
+                htmlFor="prof-backfill"
+                className="block text-[11px] text-slate-400 mb-1"
+              >
+                Comer más cuando entrenes ({Math.round(formState.calorie_backfill_ratio * 100)}%)
+              </label>
+              <input
+                id="prof-backfill"
+                name="calorie_backfill_ratio"
+                type="range"
+                min={0.4}
+                max={0.85}
+                step={0.05}
+                value={formState.calorie_backfill_ratio}
+                onChange={(e) =>
+                  setFormState({
+                    ...formState,
+                    calorie_backfill_ratio: Number(e.target.value),
+                  })
+                }
+                className="w-full"
+              />
+            </div>
 
-          <div className="flex items-center pt-4">
-            <input
-              id="prof-cycling"
-              name="carb_cycling_enabled"
-              type="checkbox"
-              checked={formState.carb_cycling_enabled}
-              onChange={(e) =>
-                setFormState({
-                  ...formState,
-                  carb_cycling_enabled: e.target.checked,
-                })
-              }
-              className="h-5 w-5"
-            />
-            <label
-              htmlFor="prof-cycling"
-              className="ml-2.5 text-xs font-semibold text-slate-200 cursor-pointer"
-            >
-              Activar Calorías Cíclicas (+Carbos en días de entreno)
-            </label>
+            <div className="flex items-center pt-2">
+              <input
+                id="prof-cycling"
+                name="carb_cycling_enabled"
+                type="checkbox"
+                checked={formState.carb_cycling_enabled}
+                onChange={(e) =>
+                  setFormState({
+                    ...formState,
+                    carb_cycling_enabled: e.target.checked,
+                  })
+                }
+                className="h-4 w-4"
+              />
+              <label
+                htmlFor="prof-cycling"
+                className="ml-2 text-[11px] font-semibold text-slate-300 cursor-pointer"
+              >
+                Más energía los días de entreno fuerte
+              </label>
+            </div>
           </div>
-        </div>
+        </details>
 
         <div>
           <label
