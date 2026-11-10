@@ -1630,22 +1630,7 @@ def list_competitions(
         .all()
     )
     if not events:
-        # Sembrar competencia objetivo inicial para demostración inmediata
-        seed_ev = CompetitionEvent(
-            user_id=current_user.id,
-            name="Media Maratón de Bogotá (21.1K)",
-            event_type="HALF_MARATHON",
-            event_date=date.today() + timedelta(days=21),
-            distance_km=21.1,
-            elevation_gain_m=180,
-            goal_time_minutes=98,
-            priority_level="A",
-            notes="Competencia principal A — Buscar sub 1h38m conservando masa muscular.",
-        )
-        db.add(seed_ev)
-        db.commit()
-        db.refresh(seed_ev)
-        events = [seed_ev]
+        return []
 
     prof = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
     targets = db.query(NutritionTarget).filter(NutritionTarget.user_id == current_user.id).first()
