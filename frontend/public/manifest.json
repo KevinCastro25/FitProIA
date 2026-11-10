@@ -1,0 +1,42 @@
+{
+  "name": "FitProIA — Recomposición Corporal y Rendimiento",
+  "short_name": "FitProIA",
+  "description": "App inteligente de nutrición colombiana, recomposición corporal (% grasa y masa magra) y entrenamiento híbrido (Gym + Running / Hyrox).",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090d16",
+  "theme_color": "#10b981",
+  "lang": "es-CO",
+  "dir": "ltr",
+  "categories": ["health", "fitness", "food", "sports"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Registrar Comida",
+      "short_name": "Comidas",
+      "description": "Añadir desayuno, almuerzo, cena o snack colombiano",
+      "url": "/?tab=comidas"
+    },
+    {
+      "name": "Registrar Entreno",
+      "short_name": "Entreno",
+      "description": "Iniciar sesión de Fuerza, Running o Hyrox",
+      "url": "/?tab=entreno"
+    },
+    {
+      "name": "Chequeo de % Grasa",
+      "short_name": "Progreso",
+      "description": "Evaluar composición corporal y perímetros",
+      "url": "/?tab=progreso"
+    }
+  ]
+}

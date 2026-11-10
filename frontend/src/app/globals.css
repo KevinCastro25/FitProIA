@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   Modern Web Guidance: dark-mode & dark-mode-toggle & brand-consistent-forms
+   ============================================================================ */
+:root {
+  --brand-accent-light: #059669;
+  --brand-accent-dark: #10b981;
+  --brand-color: var(--brand-accent-light);
+  --surface-bg: #f8fafc;
+  --surface-card: #ffffff;
+  --surface-text: #0f172a;
+  --surface-muted: #475569;
+  --surface-border: #cbd5e1;
+
+  @media (prefers-color-scheme: dark) {
+    --brand-color: var(--brand-accent-dark);
+    --surface-bg: #090d16;
+    --surface-card: #111827;
+    --surface-text: #f8fafc;
+    --surface-muted: #94a3b8;
+    --surface-border: #1e293b;
+  }
+
+  @supports (color: light-dark(white, black)) {
+    --brand-color: light-dark(var(--brand-accent-light), var(--brand-accent-dark));
+    --surface-bg: light-dark(#f8fafc, #090d16);
+    --surface-card: light-dark(#ffffff, #111827);
+    --surface-text: light-dark(#0f172a, #f8fafc);
+    --surface-muted: light-dark(#475569, #94a3b8);
+    --surface-border: light-dark(#cbd5e1, #1e293b);
+  }
+
+  /* MANDATORY: Apply color-scheme to :root and sync with <meta name="color-scheme"> */
+  color-scheme: light dark;
+  accent-color: var(--brand-color);
+
+  &:has(> head > meta[name="color-scheme"][content="dark"]) {
+    color-scheme: dark;
+    --brand-color: var(--brand-accent-dark);
+    --surface-bg: #090d16;
+    --surface-card: #111827;
+    --surface-text: #f8fafc;
+    --surface-muted: #94a3b8;
+    --surface-border: #1e293b;
+  }
+
+  &:has(> head > meta[name="color-scheme"][content="light"]) {
+    color-scheme: light;
+    --brand-color: var(--brand-accent-light);
+    --surface-bg: #f8fafc;
+    --surface-card: #ffffff;
+    --surface-text: #0f172a;
+    --surface-muted: #475569;
+    --surface-border: #cbd5e1;
+  }
+}
+
+body {
+  background-color: var(--surface-bg);
+  color: var(--surface-text);
+  accent-color: var(--brand-color);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* ============================================================================
+   Modern Web Guidance: forms (Prevenir auto-zoom en iOS Safari y tap >= 48px)
+   ============================================================================ */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select,
+textarea {
+  font: inherit;
+  font-size: max(1rem, 1em);
+  min-height: 48px;
+  box-sizing: border-box;
+}
+
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    min-height: 50px;
+  }
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 3px solid var(--brand-color);
+  outline-offset: 2px;
+}
+
+/* Validación no intrusiva usando :user-invalid en lugar de :invalid crudo */
+input:user-invalid,
+select:user-invalid,
+textarea:user-invalid {
+  border-color: #ef4444 !important;
+}
+
+/* Fallback progresivo para navegadores sin soporte de accent-color */
+@supports not (accent-color: var(--brand-color)) {
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 18px;
+    width: 18px;
+    border-radius: 50%;
+    background: var(--brand-color, #10b981);
+    cursor: pointer;
+  }
+}
+
+/* ============================================================================
+   Modern Web Guidance: dialog (Scroll containment on modal & backdrop)
+   ============================================================================ */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+/* ============================================================================
+   iPhone Safe Areas (Notch / Dynamic Island & Home Indicator)
+   ============================================================================ */
+.pt-safe {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
