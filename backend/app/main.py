@@ -11,10 +11,14 @@ from app.api.v1.router import api_router
 
 def _ensure_phase3_columns():
     alter_stmts = [
-        "ALTER TABLE daily_metrics ADD COLUMN resting_hr_bpm INTEGER DEFAULT 54",
-        "ALTER TABLE daily_metrics ADD COLUMN hrv_ms FLOAT DEFAULT 68.0",
-        "ALTER TABLE daily_metrics ADD COLUMN active_kcal_extra INTEGER DEFAULT 0",
-        "ALTER TABLE daily_metrics ADD COLUMN sync_source VARCHAR(50) DEFAULT 'MANUAL'",
+        "ALTER TABLE daily_metrics ADD COLUMN IF NOT EXISTS water_ml INTEGER DEFAULT 0",
+        "ALTER TABLE daily_metrics ADD COLUMN IF NOT EXISTS steps_count INTEGER DEFAULT 0",
+        "ALTER TABLE daily_metrics ADD COLUMN IF NOT EXISTS sleep_hours FLOAT DEFAULT 7.5",
+        "ALTER TABLE daily_metrics ADD COLUMN IF NOT EXISTS resting_hr_bpm INTEGER DEFAULT 54",
+        "ALTER TABLE daily_metrics ADD COLUMN IF NOT EXISTS hrv_ms FLOAT DEFAULT 68.0",
+        "ALTER TABLE daily_metrics ADD COLUMN IF NOT EXISTS active_kcal_extra INTEGER DEFAULT 0",
+        "ALTER TABLE daily_metrics ADD COLUMN IF NOT EXISTS sync_source VARCHAR(50) DEFAULT 'MANUAL'",
+        "ALTER TABLE daily_metrics ADD COLUMN IF NOT EXISTS day_type VARCHAR(20) DEFAULT 'TRAINING'",
     ]
     with engine.connect() as conn:
         for stmt in alter_stmts:
