@@ -43,8 +43,11 @@ import { AUTH_ENABLED, signOut } from "@/lib/supabase";
 import { CompetitionsAndRedsView } from "@/components/CompetitionsAndRedsView";
 import { CoachHealthExtrasView } from "@/components/CoachHealthExtrasView";
 
-const API_BASE =
+const rawApi =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_BASE = rawApi.includes("/api/v1")
+  ? rawApi.replace(/\/+$/, "")
+  : `${rawApi.replace(/\/+$/, "")}/api/v1`;
 
 type NavTab = "diario" | "comidas" | "entreno" | "progreso" | "coach" | "perfil";
 

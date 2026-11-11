@@ -21,8 +21,11 @@ export function getSupabase(): SupabaseClient {
   return client;
 }
 
-const API_BASE =
+const rawApi =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_BASE = rawApi.includes("/api/v1")
+  ? rawApi.replace(/\/+$/, "")
+  : `${rawApi.replace(/\/+$/, "")}/api/v1`;
 
 let fetchPatched = false;
 
@@ -41,7 +44,12 @@ export function installAuthFetch() {
         : input instanceof URL
         ? input.href
         : input.url;
-    if (url.startsWith(API_BASE)) {
+    const isApiCall =
+      url.includes("/api/v1") ||
+      (API_BASE && url.startsWith(API_BASE)) ||
+      url.includes("onrender.com") ||
+      url.includes("localhost:8000");
+    if (isApiCall) {
       const { data } = await getSupabase().auth.getSession();
       const token = data.session?.access_token;
       if (token) {
