@@ -141,6 +141,38 @@ def get_current_user(
     return default_user
 
 
+def get_current_user_optional(
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(default=None),
+) -> User:
+    """
+    Resuelve el usuario autenticado si el token está presente.
+    Si no hay token o la sesión no está activa, retorna el usuario por defecto
+    o el primer usuario registrado, evitando que endpoints públicos de visión IA
+    o recetas fallen con 401.
+    """
+    try:
+        return get_current_user(db=db, authorization=authorization)
+    except Exception:
+        default_user = db.query(User).filter(User.email == "atleta@fitproia.co").first()
+        if not default_user:
+            default_user = db.query(User).first()
+        if not default_user:
+            import uuid
+            default_user = User(
+                id=str(uuid.uuid4()),
+                email="atleta@fitproia.co",
+                full_name="Atleta FitProIA",
+                hashed_password="",
+                auth_provider="demo",
+                privacy_consent_ley1581=True,
+            )
+            db.add(default_user)
+            db.commit()
+            db.refresh(default_user)
+        return default_user
+
+
 # ============================================================================
 # 1. AUTENTICACIÓN Y PRIVACIDAD (LEY 1581 DE COLOMBIA - HABEAS DATA)
 # ============================================================================
@@ -1024,7 +1056,7 @@ def get_food_by_barcode(
 )
 def analyze_plate_endpoint(
     payload: AiPlateAnalysisRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     result = analyze_plate_photo(
@@ -1094,7 +1126,7 @@ def analyze_plate_endpoint(
 def confirm_plate_prediction(
     prediction_id: str,
     payload: AiPredictionConfirmRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     pred = (

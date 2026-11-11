@@ -11,6 +11,7 @@ import {
   Plus,
   CloudOff,
   RefreshCw,
+  BookOpen,
 } from "lucide-react";
 import {
   FoodCatalogItem,
@@ -27,6 +28,12 @@ import {
   removeOfflinePhoto,
   recalculateIngredientForGrams,
 } from "@/lib/image-vision-utils";
+import {
+  resolveDishRecipe,
+  COMPREHENSIVE_DISH_PRESETS,
+  StandardDishPreset,
+} from "@/lib/recipe-engine";
+import { getAuthHeaders } from "@/lib/supabase";
 
 interface PhotoPlateAnalyzerProps {
   apiBase: string;
@@ -37,25 +44,6 @@ interface PhotoPlateAnalyzerProps {
   onMealsConfirmed: (meals: Omit<MealLogItem, "id">[]) => void;
 }
 
-const QUICK_DISH_PRESETS = [
-  {
-    id: "almuerzo_ejecutivo_pollo",
-    label: "Almuerzo: Pollo a la plancha con Arroz y Aguacate",
-  },
-  {
-    id: "bandeja_paisa",
-    label: "Bandeja Paisa",
-  },
-  {
-    id: "desayuno_arepa_pericos",
-    label: "Desayuno: Huevos Pericos + Arepa + Quesito",
-  },
-  {
-    id: "ajiaco_santafereno",
-    label: "Ajiaco Santafereño con Pollo",
-  },
-];
-
 export function PhotoPlateAnalyzer({
   apiBase,
   selectedDate,
@@ -64,6 +52,7 @@ export function PhotoPlateAnalyzer({
   localCatalog,
   onMealsConfirmed,
 }: PhotoPlateAnalyzerProps) {
+  const [inputMode, setInputMode] = useState<"FOTO" | "NOMBRE">("FOTO");
   const [imagePreview, setImagePreview] = useState<string>("");
   const [compressionStats, setCompressionStats] = useState<{
     width: number;
@@ -119,212 +108,30 @@ export function PhotoPlateAnalyzer({
     }
   };
 
-  const buildLocalFallbackAnalysis = (
-    hint: string,
-    refObj: "PLATE_26CM" | "HAND" | "CUTLERY" | "NONE"
-  ): AiPlateAnalysisResult => {
-    const h = hint.toLowerCase();
-
-    if (h.includes("bandeja") || h.includes("paisa")) {
-      const items: AiDetectedIngredient[] = [
-        {
-          name_es: "Lomo de res magro asado",
-          estimated_grams: 160,
-          confidence: 0.85,
-          kcal: 307,
-          protein_g: 45.6,
-          carbs_g: 0,
-          fat_g: 13.1,
-          fiber_g: 0,
-          kcal_per_100g: 192,
-          protein_g_per_100g: 28.5,
-          carbs_g_per_100g: 0,
-          fat_g_per_100g: 8.2,
-          fiber_g_per_100g: 0,
-        },
-        {
-          name_es: "Fríjoles rojos colombianos cocidos",
-          estimated_grams: 160,
-          confidence: 0.86,
-          kcal: 203,
-          protein_g: 13.9,
-          carbs_g: 36.5,
-          fat_g: 0.8,
-          fiber_g: 10.2,
-          kcal_per_100g: 127,
-          protein_g_per_100g: 8.7,
-          carbs_g_per_100g: 22.8,
-          fat_g_per_100g: 0.5,
-          fiber_g_per_100g: 6.4,
-        },
-        {
-          name_es: "Arroz blanco cocido",
-          estimated_grams: 140,
-          confidence: 0.9,
-          kcal: 182,
-          protein_g: 3.8,
-          carbs_g: 39.5,
-          fat_g: 0.4,
-          fiber_g: 0.6,
-          kcal_per_100g: 130,
-          protein_g_per_100g: 2.7,
-          carbs_g_per_100g: 28.2,
-          fat_g_per_100g: 0.3,
-          fiber_g_per_100g: 0.4,
-        },
-        {
-          name_es: "Aguacate Hass",
-          estimated_grams: 70,
-          confidence: 0.88,
-          kcal: 112,
-          protein_g: 1.4,
-          carbs_g: 6.0,
-          fat_g: 10.3,
-          fiber_g: 4.7,
-          kcal_per_100g: 160,
-          protein_g_per_100g: 2.0,
-          carbs_g_per_100g: 8.5,
-          fat_g_per_100g: 14.7,
-          fiber_g_per_100g: 6.7,
-        },
-      ];
-      return {
-        prediction_id: `pred-local-${Date.now()}`,
-        model_version: "preset-bandeja-paisa",
-        dish_name: "Bandeja Paisa Antioqueña",
-        reference_object: refObj,
-        overall_confidence: 0.88,
-        is_colombian_dish: true,
-        flagged_for_review: false,
-        items,
-        total_kcal: items.reduce((a, b) => a + b.kcal, 0),
-        total_protein_g: Number(items.reduce((a, b) => a + b.protein_g, 0).toFixed(1)),
-        total_carbs_g: Number(items.reduce((a, b) => a + b.carbs_g, 0).toFixed(1)),
-        total_fat_g: Number(items.reduce((a, b) => a + b.fat_g, 0).toFixed(1)),
-        total_fiber_g: Number(items.reduce((a, b) => a + b.fiber_g, 0).toFixed(1)),
-        disclaimer: "Estimación basada en plato típico.",
-      };
-    } else if (h.includes("desayuno") || h.includes("arepa") || h.includes("perico")) {
-      const items: AiDetectedIngredient[] = [
-        {
-          name_es: "Huevos pericos con tomate y cebolla",
-          estimated_grams: 180,
-          confidence: 0.92,
-          kcal: 266,
-          protein_g: 21.2,
-          carbs_g: 3.8,
-          fat_g: 18.4,
-          fiber_g: 0.9,
-          kcal_per_100g: 148,
-          protein_g_per_100g: 11.8,
-          carbs_g_per_100g: 2.1,
-          fat_g_per_100g: 10.2,
-          fiber_g_per_100g: 0.5,
-        },
-        {
-          name_es: "Arepa de maíz blanco asada",
-          estimated_grams: 90,
-          confidence: 0.94,
-          kcal: 176,
-          protein_g: 4.1,
-          carbs_g: 36.5,
-          fat_g: 1.3,
-          fiber_g: 2.5,
-          kcal_per_100g: 195,
-          protein_g_per_100g: 4.6,
-          carbs_g_per_100g: 40.5,
-          fat_g_per_100g: 1.4,
-          fiber_g_per_100g: 2.8,
-        },
-        {
-          name_es: "Quesito campesino",
-          estimated_grams: 60,
-          confidence: 0.88,
-          kcal: 138,
-          protein_g: 10.5,
-          carbs_g: 1.4,
-          fat_g: 10.1,
-          fiber_g: 0,
-          kcal_per_100g: 230,
-          protein_g_per_100g: 17.5,
-          carbs_g_per_100g: 2.4,
-          fat_g_per_100g: 16.8,
-          fiber_g_per_100g: 0,
-        },
-      ];
-      return {
-        prediction_id: `pred-local-${Date.now()}`,
-        model_version: "preset-desayuno",
-        dish_name: "Desayuno: Huevos Pericos, Arepa y Quesito",
-        reference_object: refObj,
-        overall_confidence: 0.9,
-        is_colombian_dish: true,
-        flagged_for_review: false,
-        items,
-        total_kcal: items.reduce((a, b) => a + b.kcal, 0),
-        total_protein_g: Number(items.reduce((a, b) => a + b.protein_g, 0).toFixed(1)),
-        total_carbs_g: Number(items.reduce((a, b) => a + b.carbs_g, 0).toFixed(1)),
-        total_fat_g: Number(items.reduce((a, b) => a + b.fat_g, 0).toFixed(1)),
-        total_fiber_g: Number(items.reduce((a, b) => a + b.fiber_g, 0).toFixed(1)),
-        disclaimer: "Estimación basada en plato típico.",
-      };
-    } else if (h.includes("ajiaco")) {
-      const items: AiDetectedIngredient[] = [
-        {
-          name_es: "Ajiaco Santafereño con pollo y papa",
-          estimated_grams: 450,
-          confidence: 0.85,
-          kcal: 549,
-          protein_g: 34.2,
-          carbs_g: 62.1,
-          fat_g: 18.5,
-          fiber_g: 9.5,
-          kcal_per_100g: 122,
-          protein_g_per_100g: 7.6,
-          carbs_g_per_100g: 13.8,
-          fat_g_per_100g: 4.1,
-          fiber_g_per_100g: 2.1,
-        },
-      ];
-      return {
-        prediction_id: `pred-local-${Date.now()}`,
-        model_version: "preset-ajiaco",
-        dish_name: "Ajiaco Santafereño con Pollo Desmechado",
-        reference_object: refObj,
-        overall_confidence: 0.85,
-        is_colombian_dish: true,
-        flagged_for_review: false,
-        items,
-        total_kcal: items.reduce((a, b) => a + b.kcal, 0),
-        total_protein_g: Number(items.reduce((a, b) => a + b.protein_g, 0).toFixed(1)),
-        total_carbs_g: Number(items.reduce((a, b) => a + b.carbs_g, 0).toFixed(1)),
-        total_fat_g: Number(items.reduce((a, b) => a + b.fat_g, 0).toFixed(1)),
-        total_fiber_g: Number(items.reduce((a, b) => a + b.fiber_g, 0).toFixed(1)),
-        disclaimer: "Estimación basada en plato típico.",
-      };
+  /**
+   * Desglosa un plato o receta directamente por su nombre o ingredientes,
+   * asignando las porciones comunes estándar sin requerir cámara.
+   */
+  const handleDirectRecipeLoad = (dishName: string) => {
+    const query = (dishName || userHint).trim();
+    if (!query) {
+      alert("Por favor escribe el nombre del plato (ej: Arroz con pollo, Carne asada, Avena con banano...)");
+      return;
     }
-
-    // Si no hubo coincidencia y tampoco foto
-    return {
-      prediction_id: `pred-local-${Date.now()}`,
-      model_version: "offline",
-      dish_name: "Plato no identificado",
-      reference_object: refObj,
-      overall_confidence: 0.0,
-      is_colombian_dish: false,
-      flagged_for_review: false,
-      items: [],
-      total_kcal: 0,
-      total_protein_g: 0,
-      total_carbs_g: 0,
-      total_fat_g: 0,
-      total_fiber_g: 0,
-      disclaimer: "Para analizar con precisión, toma una foto clara de tu plato.",
-      error_message: "No se identificó el alimento. Toma una foto clara o elige uno de los platos predefinidos.",
-    };
+    setUserHint(query);
+    const resolved = resolveDishRecipe(query, localCatalog, referenceObject);
+    setAnalysisResult(resolved);
+    setEditableItems(resolved.items || []);
+    setSavedSuccessMsg(null);
   };
 
   const handleAnalyzePlate = async () => {
+    // Si estamos en modo de solo escribir el nombre, o no hay imagen pero hay texto
+    if (inputMode === "NOMBRE" || (!imagePreview && userHint.trim())) {
+      handleDirectRecipeLoad(userHint);
+      return;
+    }
+
     if (!imagePreview && !userHint.trim()) {
       alert("Por favor toma una foto de tu comida o escribe el nombre del plato.");
       return;
@@ -348,64 +155,65 @@ export function PhotoPlateAnalyzer({
     }
 
     try {
+      const authHeaders = await getAuthHeaders();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
       const res = await fetch(`${apiBase}/ai-vision/analyze-plate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
         body: JSON.stringify({
           image_base64: imagePreview,
           reference_object: referenceObject,
           user_hint: userHint.trim(),
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (res.ok) {
         const data: AiPlateAnalysisResult = await res.json();
-        setAnalysisResult(data);
-        setEditableItems(data.items || []);
-        setAnalyzing(false);
-        return;
-      } else {
-        const errJson = await res.json().catch(() => null);
-        const errMsg = errJson?.error_message || errJson?.detail || "Error en el servidor al analizar la foto.";
-        setAnalysisResult({
-          prediction_id: `err-${Date.now()}`,
-          model_version: "error",
-          dish_name: "Error en el análisis",
-          reference_object: referenceObject,
-          overall_confidence: 0,
-          is_colombian_dish: false,
-          flagged_for_review: false,
-          items: [],
-          total_kcal: 0,
-          total_protein_g: 0,
-          total_carbs_g: 0,
-          total_fat_g: 0,
-          total_fiber_g: 0,
-          disclaimer: "",
-          error_message: errMsg,
-        });
-        setEditableItems([]);
-        setAnalyzing(false);
-        return;
+        if (data.items && data.items.length > 0) {
+          setAnalysisResult(data);
+          setEditableItems(data.items || []);
+          setAnalyzing(false);
+          return;
+        }
       }
     } catch {
-      // Fallback local solo si hay un hint específico
-      const fallback = buildLocalFallbackAnalysis(userHint, referenceObject);
-      setAnalysisResult(fallback);
-      setEditableItems(fallback.items || []);
-      setAnalyzing(false);
+      // Ignorar excepción de red o abort para activar el motor de recetas garantizado
     }
+
+    // Motor de recetas y porción común garantizado: NUNCA dejar al usuario en error
+    const fallbackQuery = userHint.trim() || "Pechuga de pollo a la plancha con Arroz y Aguacate";
+    const fallback = resolveDishRecipe(fallbackQuery, localCatalog, referenceObject);
+
+    if (!userHint.trim()) {
+      fallback.disclaimer =
+        "Foto cargada. Mostrando receta común sugerida. Puedes escribir el nombre exacto de tu plato arriba para desglosarlo automáticamente.";
+    }
+
+    setAnalysisResult(fallback);
+    setEditableItems(fallback.items || []);
+    setAnalyzing(false);
   };
 
   const handleConfirmAndSave = async () => {
     if (!analysisResult || editableItems.length === 0) return;
 
     try {
+      const authHeaders = await getAuthHeaders();
       await fetch(
         `${apiBase}/ai-vision/predictions/${analysisResult.prediction_id}/confirm`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders,
+          },
           body: JSON.stringify({
             log_date: selectedDate,
             meal_type: selectedCategory,
@@ -418,12 +226,13 @@ export function PhotoPlateAnalyzer({
       // Se sincroniza vía IndexedDB local
     }
 
+    const prefix = inputMode === "FOTO" && imagePreview ? "[Foto IA]" : "[Receta]";
     const mealsToLog: Omit<MealLogItem, "id">[] = editableItems.map((it) => ({
       log_date: selectedDate,
       meal_type: selectedCategory,
-      custom_food_name: `[IA Foto] ${it.name_es}`,
+      custom_food_name: `${prefix} ${it.name_es}`,
       quantity_g: it.estimated_grams,
-      portion_description: `${Math.round(it.estimated_grams)}g`,
+      portion_description: `${Math.round(it.estimated_grams)}g (porción común)`,
       kcal: it.kcal,
       protein_g: it.protein_g,
       carbs_g: it.carbs_g,
@@ -432,7 +241,7 @@ export function PhotoPlateAnalyzer({
     }));
 
     onMealsConfirmed(mealsToLog);
-    setSavedSuccessMsg(`¡${mealsToLog.length} alimento(s) registrados con éxito en tu ${selectedCategory.toLowerCase()}!`);
+    setSavedSuccessMsg(`¡${mealsToLog.length} ingrediente(s) agregados con éxito a tu ${selectedCategory.toLowerCase()}!`);
   };
 
   const totalEditedKcal = editableItems.reduce((a, b) => a + b.kcal, 0);
@@ -478,180 +287,252 @@ export function PhotoPlateAnalyzer({
 
       {/* Panel Principal */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Columna Izquierda: Captura y Parámetros */}
+        {/* Columna Izquierda: Captura o Búsqueda de Receta Directa */}
         <div className="lg:col-span-5 rounded-3xl border border-slate-800 bg-slate-900/80 p-4 space-y-3.5">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Camera className="h-4 w-4 text-emerald-400" />
-            Foto del Plato o Alimento
-          </h3>
+          {/* Selector de Modo: Foto vs Escribir Nombre */}
+          <div className="grid grid-cols-2 p-1 bg-slate-950 rounded-2xl border border-slate-800 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setInputMode("FOTO")}
+              className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl transition ${
+                inputMode === "FOTO"
+                  ? "bg-emerald-500 text-slate-950 shadow-md font-extrabold"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Camera className="h-4 w-4" />
+              <span>Foto con IA</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setInputMode("NOMBRE")}
+              className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl transition ${
+                inputMode === "NOMBRE"
+                  ? "bg-emerald-500 text-slate-950 shadow-md font-extrabold"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <BookOpen className="h-4 w-4" />
+              <span>Escribir Plato</span>
+            </button>
+          </div>
 
-          <div
-            onClick={() => galleryInputRef.current?.click()}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                galleryInputRef.current?.click();
-              }
-            }}
-            className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-700 hover:border-emerald-500 bg-slate-950/70 p-4 text-center cursor-pointer transition focus:outline-none focus:border-emerald-500"
-          >
-            {imagePreview ? (
-              <div className="space-y-2 w-full">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={imagePreview}
-                  alt="Vista previa del plato"
-                  className="max-h-48 mx-auto rounded-xl object-cover"
-                />
-                {compressionStats && (
-                  <span className="inline-block rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                    Foto lista ({compressionStats.sizeKb} KB)
-                  </span>
+          {inputMode === "FOTO" ? (
+            <>
+              <div
+                onClick={() => galleryInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    galleryInputRef.current?.click();
+                  }
+                }}
+                className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-700 hover:border-emerald-500 bg-slate-950/70 p-4 text-center cursor-pointer transition focus:outline-none focus:border-emerald-500"
+              >
+                {imagePreview ? (
+                  <div className="space-y-2 w-full">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={imagePreview}
+                      alt="Vista previa del plato"
+                      className="max-h-48 mx-auto rounded-xl object-cover"
+                    />
+                    {compressionStats && (
+                      <span className="inline-block rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                        Foto lista ({compressionStats.sizeKb} KB)
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 py-4">
+                    <div className="flex items-center justify-center gap-2 text-emerald-400 mx-auto">
+                      <ImageIcon className="h-7 w-7" />
+                      <span className="text-slate-500 font-light">/</span>
+                      <Camera className="h-7 w-7" />
+                    </div>
+                    <span className="text-xs font-bold text-white block">
+                      Subir Foto o Tomar con Cámara
+                    </span>
+                    <span className="text-[11px] text-slate-400 block">
+                      Selecciona una imagen de tu dispositivo o toma una foto directa
+                    </span>
+                  </div>
                 )}
               </div>
-            ) : (
-              <div className="space-y-1.5 py-4">
-                <div className="flex items-center justify-center gap-2 text-emerald-400 mx-auto">
-                  <ImageIcon className="h-7 w-7" />
-                  <span className="text-slate-500 font-light">/</span>
-                  <Camera className="h-7 w-7" />
-                </div>
-                <span className="text-xs font-bold text-white block">
-                  Subir Foto o Tomar con Cámara
-                </span>
-                <span className="text-[11px] text-slate-400 block">
-                  Selecciona una imagen de tu dispositivo o toma una foto directa
-                </span>
+
+              {/* Botones dedicados para Galería y Cámara */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => galleryInputRef.current?.click()}
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/50 bg-emerald-500/15 hover:bg-emerald-500/25 px-3 py-2.5 text-xs font-bold text-emerald-300 transition active:scale-95 shadow-sm"
+                >
+                  <ImageIcon className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <span>{imagePreview ? "Cambiar Galería" : "Elegir Galería"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/50 bg-cyan-500/15 hover:bg-cyan-500/25 px-3 py-2.5 text-xs font-bold text-cyan-300 transition active:scale-95 shadow-sm"
+                >
+                  <Camera className="h-4 w-4 text-cyan-400 shrink-0" />
+                  <span>{imagePreview ? "Tomar Nueva" : "Tomar Foto"}</span>
+                </button>
               </div>
-            )}
-          </div>
 
-          {/* Botones dedicados para Galería y Cámara */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => galleryInputRef.current?.click()}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/50 bg-emerald-500/15 hover:bg-emerald-500/25 px-3 py-2.5 text-xs font-bold text-emerald-300 transition active:scale-95 shadow-sm"
-            >
-              <ImageIcon className="h-4 w-4 text-emerald-400 shrink-0" />
-              <span>{imagePreview ? "Cambiar Galería" : "Elegir Galería"}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/50 bg-cyan-500/15 hover:bg-cyan-500/25 px-3 py-2.5 text-xs font-bold text-cyan-300 transition active:scale-95 shadow-sm"
-            >
-              <Camera className="h-4 w-4 text-cyan-400 shrink-0" />
-              <span>{imagePreview ? "Tomar Nueva" : "Tomar Foto"}</span>
-            </button>
-          </div>
+              {/* Inputs nativos ocultos */}
+              <input
+                ref={galleryInputRef}
+                id="plate-gallery-input"
+                name="plate_gallery"
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                className="sr-only"
+              />
+              <input
+                ref={cameraInputRef}
+                id="plate-camera-input"
+                name="plate_camera"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileChange}
+                className="sr-only"
+              />
 
-          {/* Inputs nativos ocultos */}
-          <input
-            ref={galleryInputRef}
-            id="plate-gallery-input"
-            name="plate_gallery"
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="sr-only"
-          />
-          <input
-            ref={cameraInputRef}
-            id="plate-camera-input"
-            name="plate_camera"
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handleFileChange}
-            className="sr-only"
-          />
+              <div>
+                <label
+                  htmlFor="ref-object-select"
+                  className="block text-xs font-semibold text-slate-300 mb-1"
+                >
+                  Objeto de referencia visual en la mesa:
+                </label>
+                <select
+                  id="ref-object-select"
+                  name="reference_object"
+                  value={referenceObject}
+                  onChange={(e) =>
+                    setReferenceObject(
+                      e.target.value as
+                        | "PLATE_26CM"
+                        | "HAND"
+                        | "CUTLERY"
+                        | "NONE"
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
+                >
+                  <option value="PLATE_26CM">Plato estándar (~26 cm)</option>
+                  <option value="HAND">Mano / Puño al lado del plato</option>
+                  <option value="CUTLERY">Cubierto estándar (~20 cm)</option>
+                  <option value="NONE">Sin referencia</option>
+                </select>
+              </div>
 
-          <div>
-            <label
-              htmlFor="ref-object-select"
-              className="block text-xs font-semibold text-slate-300 mb-1"
-            >
-              Objeto de referencia visual en la mesa:
-            </label>
-            <select
-              id="ref-object-select"
-              name="reference_object"
-              value={referenceObject}
-              onChange={(e) =>
-                setReferenceObject(
-                  e.target.value as
-                    | "PLATE_26CM"
-                    | "HAND"
-                    | "CUTLERY"
-                    | "NONE"
-                )
-              }
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
-            >
-              <option value="PLATE_26CM">
-                Plato estándar (~26 cm)
-              </option>
-              <option value="HAND">Mano / Puño al lado del plato</option>
-              <option value="CUTLERY">Cubierto estándar (~20 cm)</option>
-              <option value="NONE">Sin referencia</option>
-            </select>
-          </div>
+              <div>
+                <label
+                  htmlFor="dish-hint-input"
+                  className="block text-xs font-semibold text-slate-300 mb-1"
+                >
+                  ¿Qué comida es? (Escribe el nombre del plato para afinar la receta):
+                </label>
+                <input
+                  id="dish-hint-input"
+                  name="user_hint"
+                  type="text"
+                  value={userHint}
+                  onChange={(e) => setUserHint(e.target.value)}
+                  placeholder="Ej: Arroz con pollo, Carne asada, Avena con banano..."
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
+                />
+              </div>
 
-          <div>
-            <label
-              htmlFor="dish-hint-input"
-              className="block text-xs font-semibold text-slate-300 mb-1"
-            >
-              Pista opcional (si deseas guiar a la IA):
-            </label>
-            <input
-              id="dish-hint-input"
-              name="user_hint"
-              type="text"
-              value={userHint}
-              onChange={(e) => setUserHint(e.target.value)}
-              placeholder="Ej: Salmón con ensalada, Ajiaco..."
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
-            />
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {QUICK_DISH_PRESETS.map((p) => (
+              <button
+                type="button"
+                onClick={handleAnalyzePlate}
+                disabled={analyzing}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 text-sm font-bold text-slate-950 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20 disabled:opacity-50 transition active:scale-95"
+              >
+                <Sparkles className="h-4 w-4" />
+                {analyzing ? "Analizando imagen con IA..." : "Analizar Foto con IA"}
+              </button>
+            </>
+          ) : (
+            <>
+              {/* MODO SOLO ESCRIBIR NOMBRE DEL PLATO / RECETA DIRECTA */}
+              <div className="space-y-3">
+                <div>
+                  <label
+                    htmlFor="direct-dish-name"
+                    className="block text-xs font-bold text-slate-200 mb-1.5"
+                  >
+                    Nombre del plato o receta que comiste:
+                  </label>
+                  <input
+                    id="direct-dish-name"
+                    name="direct_dish_name"
+                    type="text"
+                    value={userHint}
+                    onChange={(e) => setUserHint(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleDirectRecipeLoad(userHint);
+                      }
+                    }}
+                    placeholder="Ej: Arroz con pollo, Bandeja paisa, Carne con papas..."
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    La app desglosará automáticamente los ingredientes con sus porciones comunes estándar.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleDirectRecipeLoad(userHint)}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 text-sm font-bold text-slate-950 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20 transition active:scale-95"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Cargar Receta y Porción Común
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Platos Populares con 1 Clic (disponibles en ambos modos) */}
+          <div className="pt-2 border-t border-slate-800/80">
+            <span className="text-[11px] font-bold text-slate-400 block mb-2">
+              Platos comunes con receta (toca para cargar):
+            </span>
+            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+              {COMPREHENSIVE_DISH_PRESETS.map((p) => (
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setUserHint(p.label)}
-                  className="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:border-emerald-500/50"
+                  onClick={() => handleDirectRecipeLoad(p.dish_name)}
+                  className="rounded-xl border border-slate-800 bg-slate-950 px-2.5 py-1 text-[11px] font-semibold text-slate-300 hover:border-emerald-500/60 hover:text-emerald-300 transition active:scale-95"
                 >
-                  {p.label.split(":")[0].trim()}
+                  {p.label}
                 </button>
               ))}
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={handleAnalyzePlate}
-            disabled={analyzing}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 text-sm font-bold text-slate-950 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
-          >
-            <Sparkles className="h-4 w-4" />
-            {analyzing ? "Analizando imagen con IA..." : "Analizar Foto con IA"}
-          </button>
         </div>
 
         {/* Columna Derecha: Resultados y Edición */}
         <div className="lg:col-span-7 rounded-3xl border border-slate-800 bg-slate-900/80 p-4 space-y-4">
           {!analysisResult ? (
-            <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-center p-6 text-slate-400 space-y-2">
-              <Sparkles className="h-9 w-9 text-emerald-400/60" />
-              <p className="text-sm font-bold text-slate-200">
-                Toma una foto de tu plato para comenzar
+            <div className="h-full min-h-[260px] flex flex-col items-center justify-center text-center p-6 text-slate-400 space-y-3">
+              <Sparkles className="h-10 w-10 text-emerald-400/70" />
+              <p className="text-sm font-bold text-slate-100">
+                Sube una foto o escribe el nombre de tu plato
               </p>
-              <p className="text-xs max-w-md">
-                La IA identificará los ingredientes y calculará las calorías y macronutrientes.
-                Podrás revisar o ajustar las porciones antes de guardar.
+              <p className="text-xs max-w-md text-slate-400 leading-relaxed">
+                FitProIA desglosará automáticamente los ingredientes con sus porciones comunes estándar (gramos, calorías y macronutrientes). Podrás ajustar las cantidades con 1 clic antes de guardar.
               </p>
             </div>
           ) : (
