@@ -117,9 +117,16 @@ export interface StrengthSetItem {
 }
 
 export type WorkoutModality =
-  | "STRENGTH"
+  | "GYM"
   | "RUNNING"
+  | "BICICLETA"
+  | "BICICLETA ESTATICA"
   | "HYROX"
+  | "CROSSFIT"
+  | "BICICLETA ELIPTICA"
+  | "CAMINADORA"
+  | "OTROS EJERCICIOS"
+  | "STRENGTH"
   | "CYCLING"
   | "SWIMMING"
   | "MOBILITY";

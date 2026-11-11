@@ -169,10 +169,11 @@ class WorkoutCreate(BaseModel):
     session_date: date
     title: str
     modality: str = Field(
-        description="STRENGTH | RUNNING | HYROX | CYCLING | SWIMMING | MOBILITY"
+        description="GYM | RUNNING | BICICLETA | BICICLETA ESTATICA | HYROX | CROSSFIT | BICICLETA ELIPTICA | CAMINADORA | OTROS EJERCICIOS"
     )
     duration_minutes: int = Field(gt=0)
     session_rpe: int = Field(default=7, ge=1, le=10)
+    estimated_kcal_burned: Optional[int] = Field(default=None, ge=0)
     distance_km: float = Field(default=0.0, ge=0)
     avg_pace_sec_per_km: int = Field(default=0, ge=0)
     avg_hr_bpm: int = Field(default=0, ge=0)

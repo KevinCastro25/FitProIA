@@ -586,15 +586,18 @@ def create_workout(
     prof = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
     weight_kg = prof.current_weight_kg if prof else 75.0
 
-    internal_load_au = payload.duration_minutes * payload.session_rpe
-    est_kcal = estimate_workout_calories(
-        modality=payload.modality,
-        duration_minutes=payload.duration_minutes,
-        weight_kg=weight_kg,
-        session_rpe=payload.session_rpe,
-        distance_km=payload.distance_km,
-        avg_hr_bpm=payload.avg_hr_bpm,
-    )
+    internal_load_au = payload.duration_minutes * (payload.session_rpe or 7)
+    if payload.estimated_kcal_burned is not None and payload.estimated_kcal_burned > 0:
+        final_kcal = payload.estimated_kcal_burned
+    else:
+        final_kcal = estimate_workout_calories(
+            modality=payload.modality,
+            duration_minutes=payload.duration_minutes,
+            weight_kg=weight_kg,
+            session_rpe=payload.session_rpe or 7,
+            distance_km=payload.distance_km,
+            avg_hr_bpm=payload.avg_hr_bpm,
+        )
 
     workout = WorkoutSession(
         user_id=current_user.id,
@@ -602,9 +605,9 @@ def create_workout(
         title=payload.title,
         modality=payload.modality,
         duration_minutes=payload.duration_minutes,
-        session_rpe=payload.session_rpe,
+        session_rpe=payload.session_rpe or 7,
         internal_load_au=internal_load_au,
-        estimated_kcal_burned=est_kcal,
+        estimated_kcal_burned=final_kcal,
         distance_km=payload.distance_km,
         avg_pace_sec_per_km=payload.avg_pace_sec_per_km,
         avg_hr_bpm=payload.avg_hr_bpm,
