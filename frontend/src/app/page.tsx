@@ -400,11 +400,14 @@ export default function FitProIAPwaApp() {
     setProfile(newProf);
     await idbSet("profile", newProf);
     try {
-      await fetch(`${API_BASE}/profile`, {
+      const res = await fetch(`${API_BASE}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newProf),
       });
+      if (!res.ok) {
+        throw new Error(`Error servidor: ${res.status}`);
+      }
     } catch {
       await enqueueOfflineMutation({
         mutationId: `mut-prof-${Date.now()}`,
@@ -413,6 +416,8 @@ export default function FitProIAPwaApp() {
         payload: newProf,
         createdAt: new Date().toISOString(),
       });
+      const q = await getOfflineOutbox();
+      setPendingOfflineCount(q.length);
     }
   };
 

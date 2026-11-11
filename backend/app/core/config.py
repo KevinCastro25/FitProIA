@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 90                # 90 días refresh token en PWA
 
     # Supabase & Gemini (listos para Fase 2 y producción)
-    NEXT_PUBLIC_SUPABASE_URL: str = ""
-    SUPABASE_ANON_KEY: str = ""
+    NEXT_PUBLIC_SUPABASE_URL: str = "https://jddtzjqsoktcthxbxhbh.supabase.co"
+    SUPABASE_ANON_KEY: str = "sb_publishable_fNyIXvq_tMeEQnJ6puxztQ_waSvVow4"
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     GEMINI_API_KEY: str = ""
     # Gemini AI - Modelos en orden de prioridad: 3.8 -> 3.7 -> 3.6 -> 3.5 -> 3.0 -> 2.5 -> 2.0 -> 1.5
