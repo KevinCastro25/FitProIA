@@ -48,7 +48,7 @@ export function BarcodeScannerModal({
     food: FoodCatalogItem;
   } | null>(null);
   const [notFoundMsg, setNotFoundMsg] = useState<string | null>(null);
-  const [gramsToLog, setGramsToLog] = useState<number>(100);
+  const [gramsToLog, setGramsToLog] = useState<string | number>(100);
 
   // Sincronizar con <dialog> nativo usando showModal()
   useEffect(() => {
@@ -470,7 +470,7 @@ export function BarcodeScannerModal({
                   type="number"
                   min={1}
                   value={gramsToLog}
-                  onChange={(e) => setGramsToLog(Number(e.target.value) || 100)}
+                  onChange={(e) => setGramsToLog(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold text-white"
                 />
               </div>
@@ -479,7 +479,7 @@ export function BarcodeScannerModal({
                   <span className="text-[10px] text-slate-400 block">Calorías</span>
                   <strong className="text-white">
                     {Math.round(
-                      (scannedResult.food.kcal_per_100g * gramsToLog) / 100
+                      (scannedResult.food.kcal_per_100g * (Number(gramsToLog) || 0)) / 100
                     )}{" "}
                     kcal
                   </strong>
@@ -488,7 +488,7 @@ export function BarcodeScannerModal({
                   <span className="text-[10px] text-slate-400 block">Proteína</span>
                   <strong className="text-emerald-400">
                     {(
-                      (scannedResult.food.protein_g_per_100g * gramsToLog) /
+                      (scannedResult.food.protein_g_per_100g * (Number(gramsToLog) || 0)) /
                       100
                     ).toFixed(1)}
                     g
@@ -500,7 +500,7 @@ export function BarcodeScannerModal({
             <button
               type="button"
               onClick={() => {
-                onFoodScanned(scannedResult.food, gramsToLog);
+                onFoodScanned(scannedResult.food, Number(gramsToLog) || 100);
                 stopCameraStream();
                 onClose();
               }}

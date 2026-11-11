@@ -80,7 +80,7 @@ export function PhotoPlateAnalyzer({
   const [newIngFoodId, setNewIngFoodId] = useState<string>(
     localCatalog[0]?.id ?? ""
   );
-  const [newIngGrams, setNewIngGrams] = useState<number>(80);
+  const [newIngGrams, setNewIngGrams] = useState<string | number>(80);
 
   const [savedSuccessMsg, setSavedSuccessMsg] = useState<string | null>(null);
   const [offlinePhotoQueue, setOfflinePhotoQueue] = useState<
@@ -740,7 +740,7 @@ export function PhotoPlateAnalyzer({
                       type="number"
                       min={5}
                       value={newIngGrams}
-                      onChange={(e) => setNewIngGrams(Number(e.target.value) || 50)}
+                      onChange={(e) => setNewIngGrams(e.target.value)}
                       className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-white"
                     />
                   </div>
@@ -749,12 +749,13 @@ export function PhotoPlateAnalyzer({
                     onClick={() => {
                       const f = localCatalog.find((x) => x.id === newIngFoodId);
                       if (!f) return;
-                      const ratio = newIngGrams / 100.0;
+                      const finalG = Number(newIngGrams) || 50;
+                      const ratio = finalG / 100.0;
                       setEditableItems((prev) => [
                         ...prev,
                         {
                           name_es: f.name_es,
-                          estimated_grams: newIngGrams,
+                          estimated_grams: finalG,
                           confidence: 1.0,
                           kcal: Math.round(f.kcal_per_100g * ratio),
                           protein_g: Number((f.protein_g_per_100g * ratio).toFixed(1)),

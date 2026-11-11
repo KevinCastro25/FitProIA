@@ -63,7 +63,7 @@ export function NutritionMealsView({
   const [selectedFood, setSelectedFood] = useState<FoodCatalogItem | null>(
     foods[0] ?? null
   );
-  const [grams, setGrams] = useState<number>(foods[0]?.serving_weight_g ?? 100);
+  const [grams, setGrams] = useState<string | number>(foods[0]?.serving_weight_g ?? 100);
   const [activeSubTab, setActiveSubTab] = useState<
     "FOTO_IA" | "BUSCADOR" | "RECETAS" | "NUEVO_ALIMENTO"
   >("FOTO_IA");
@@ -75,21 +75,21 @@ export function NutritionMealsView({
   const [customServingLabel, setCustomServingLabel] = useState(
     "1 porción casera (120g)"
   );
-  const [customServingG, setCustomServingG] = useState(120);
-  const [customKcal100, setCustomKcal100] = useState(180);
-  const [customP100, setCustomP100] = useState(15);
-  const [customC100, setCustomC100] = useState(20);
-  const [customF100, setCustomF100] = useState(5);
-  const [customFib100, setCustomFib100] = useState(3);
+  const [customServingG, setCustomServingG] = useState<string | number>(120);
+  const [customKcal100, setCustomKcal100] = useState<string | number>(180);
+  const [customP100, setCustomP100] = useState<string | number>(15);
+  const [customC100, setCustomC100] = useState<string | number>(20);
+  const [customF100, setCustomF100] = useState<string | number>(5);
+  const [customFib100, setCustomFib100] = useState<string | number>(3);
 
   // Estado para creador de recetas propias
   const [recipeName, setRecipeName] = useState("");
-  const [recipeServings, setRecipeServings] = useState(2);
+  const [recipeServings, setRecipeServings] = useState<string | number>(2);
   const [recipeIngredients, setRecipeIngredients] = useState<
     RecipeItem["ingredients"]
   >([]);
   const [ingFoodId, setIngFoodId] = useState<string>(foods[0]?.id ?? "");
-  const [ingWeightG, setIngWeightG] = useState<number>(150);
+  const [ingWeightG, setIngWeightG] = useState<string | number>(150);
 
   const filteredFoods = foods.filter(
     (f) =>
@@ -109,17 +109,18 @@ export function NutritionMealsView({
 
   const handleAddSelectedFood = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFood || grams <= 0) return;
-    const ratio = grams / 100.0;
+    const numGrams = Number(grams) || 0;
+    if (!selectedFood || numGrams <= 0) return;
+    const ratio = numGrams / 100.0;
     onLogMeal({
       log_date: selectedDate,
       meal_type: selectedCategory,
       custom_food_name: selectedFood.name_es,
-      quantity_g: grams,
+      quantity_g: numGrams,
       portion_description:
-        grams === selectedFood.serving_weight_g
+        numGrams === selectedFood.serving_weight_g
           ? selectedFood.serving_label
-          : `${grams}g`,
+          : `${numGrams}g`,
       kcal: Math.round(selectedFood.kcal_per_100g * ratio),
       protein_g: Number((selectedFood.protein_g_per_100g * ratio).toFixed(1)),
       carbs_g: Number((selectedFood.carbs_g_per_100g * ratio).toFixed(1)),
@@ -137,12 +138,12 @@ export function NutritionMealsView({
       category: "Personalizado / Colombiano",
       region: "CO",
       serving_label: customServingLabel,
-      serving_weight_g: customServingG,
-      kcal_per_100g: customKcal100,
-      protein_g_per_100g: customP100,
-      carbs_g_per_100g: customC100,
-      fat_g_per_100g: customF100,
-      fiber_g_per_100g: customFib100,
+      serving_weight_g: Number(customServingG) || 100,
+      kcal_per_100g: Number(customKcal100) || 0,
+      protein_g_per_100g: Number(customP100) || 0,
+      carbs_g_per_100g: Number(customC100) || 0,
+      fat_g_per_100g: Number(customF100) || 0,
+      fiber_g_per_100g: Number(customFib100) || 0,
     });
     setCustomName("");
     setActiveSubTab("BUSCADOR");
@@ -151,13 +152,14 @@ export function NutritionMealsView({
 
   const handleAddRecipeIngredient = () => {
     const f = foods.find((item) => item.id === ingFoodId);
-    if (!f || ingWeightG <= 0) return;
-    const ratio = ingWeightG / 100.0;
+    const numWeight = Number(ingWeightG) || 0;
+    if (!f || numWeight <= 0) return;
+    const ratio = numWeight / 100.0;
     setRecipeIngredients((prev) => [
       ...prev,
       {
         food_name: f.name_es,
-        weight_g: ingWeightG,
+        weight_g: numWeight,
         kcal: Math.round(f.kcal_per_100g * ratio),
         protein_g: Number((f.protein_g_per_100g * ratio).toFixed(1)),
         carbs_g: Number((f.carbs_g_per_100g * ratio).toFixed(1)),
@@ -170,7 +172,7 @@ export function NutritionMealsView({
   const handleSaveRecipe = (e: React.FormEvent) => {
     e.preventDefault();
     if (!recipeName.trim() || recipeIngredients.length === 0) return;
-    const servings = Math.max(1, recipeServings);
+    const servings = Math.max(1, Number(recipeServings) || 1);
     const totalWeight = recipeIngredients.reduce(
       (acc, i) => acc + i.weight_g,
       0
@@ -470,7 +472,7 @@ export function NutritionMealsView({
                     max={2500}
                     required
                     value={grams}
-                    onChange={(e) => setGrams(Number(e.target.value) || 0)}
+                    onChange={(e) => setGrams(e.target.value)}
                     className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-sm font-bold text-white"
                   />
                 </div>
@@ -482,7 +484,7 @@ export function NutritionMealsView({
                       Calorías
                     </span>
                     <span className="text-sm font-extrabold text-white">
-                      {Math.round((selectedFood.kcal_per_100g * grams) / 100)}
+                      {Math.round((selectedFood.kcal_per_100g * (Number(grams) || 0)) / 100)}
                     </span>
                   </div>
                   <div>
@@ -490,7 +492,7 @@ export function NutritionMealsView({
                       Proteína
                     </span>
                     <span className="text-sm font-extrabold text-emerald-400">
-                      {((selectedFood.protein_g_per_100g * grams) / 100).toFixed(
+                      {((selectedFood.protein_g_per_100g * (Number(grams) || 0)) / 100).toFixed(
                         1
                       )}
                       g
@@ -499,7 +501,7 @@ export function NutritionMealsView({
                   <div>
                     <span className="text-[10px] text-sky-400 block">Carbos</span>
                     <span className="text-sm font-extrabold text-sky-400">
-                      {((selectedFood.carbs_g_per_100g * grams) / 100).toFixed(1)}
+                      {((selectedFood.carbs_g_per_100g * (Number(grams) || 0)) / 100).toFixed(1)}
                       g
                     </span>
                   </div>
@@ -508,7 +510,7 @@ export function NutritionMealsView({
                       Grasas
                     </span>
                     <span className="text-sm font-extrabold text-amber-400">
-                      {((selectedFood.fat_g_per_100g * grams) / 100).toFixed(1)}g
+                      {((selectedFood.fat_g_per_100g * (Number(grams) || 0)) / 100).toFixed(1)}g
                     </span>
                   </div>
                 </div>
@@ -617,9 +619,7 @@ export function NutritionMealsView({
                   max={20}
                   required
                   value={recipeServings}
-                  onChange={(e) =>
-                    setRecipeServings(Number(e.target.value) || 1)
-                  }
+                  onChange={(e) => setRecipeServings(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
                 />
               </div>
@@ -660,7 +660,7 @@ export function NutritionMealsView({
                   type="number"
                   min={5}
                   value={ingWeightG}
-                  onChange={(e) => setIngWeightG(Number(e.target.value) || 0)}
+                  onChange={(e) => setIngWeightG(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white"
                 />
               </div>
@@ -761,9 +761,7 @@ export function NutritionMealsView({
                 name="serving_weight_g"
                 type="number"
                 value={customServingG}
-                onChange={(e) =>
-                  setCustomServingG(Number(e.target.value) || 100)
-                }
+                onChange={(e) => setCustomServingG(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
               />
             </div>
@@ -779,7 +777,7 @@ export function NutritionMealsView({
                 name="kcal_per_100g"
                 type="number"
                 value={customKcal100}
-                onChange={(e) => setCustomKcal100(Number(e.target.value) || 0)}
+                onChange={(e) => setCustomKcal100(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
               />
             </div>
@@ -796,7 +794,7 @@ export function NutritionMealsView({
                 type="number"
                 step="0.1"
                 value={customP100}
-                onChange={(e) => setCustomP100(Number(e.target.value) || 0)}
+                onChange={(e) => setCustomP100(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
               />
             </div>
@@ -813,7 +811,7 @@ export function NutritionMealsView({
                 type="number"
                 step="0.1"
                 value={customC100}
-                onChange={(e) => setCustomC100(Number(e.target.value) || 0)}
+                onChange={(e) => setCustomC100(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
               />
             </div>
@@ -830,7 +828,7 @@ export function NutritionMealsView({
                 type="number"
                 step="0.1"
                 value={customF100}
-                onChange={(e) => setCustomF100(Number(e.target.value) || 0)}
+                onChange={(e) => setCustomF100(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
               />
             </div>
@@ -847,7 +845,7 @@ export function NutritionMealsView({
                 type="number"
                 step="0.1"
                 value={customFib100}
-                onChange={(e) => setCustomFib100(Number(e.target.value) || 0)}
+                onChange={(e) => setCustomFib100(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
               />
             </div>

@@ -28,6 +28,23 @@ interface ProfileCalculatorViewProps {
   onOpenInstallGuide: () => void;
 }
 
+type ProfileFormState = {
+  sex: "M" | "F";
+  age: string | number;
+  height_cm: string | number;
+  current_weight_kg: string | number;
+  current_body_fat_pct: string | number | null;
+  target_body_fat_pct: string | number;
+  activity_level: UserProfileData["activity_level"];
+  target_weekly_loss_pct: number;
+  carb_cycling_enabled: boolean;
+  protein_g_per_kg: number;
+  calorie_backfill_ratio: number;
+  injuries_or_restrictions: string;
+  primary_sport_focus: string;
+  bf_measurement_method: UserProfileData["bf_measurement_method"];
+};
+
 export function ProfileCalculatorView({
   apiBase,
   isStandalone,
@@ -37,7 +54,7 @@ export function ProfileCalculatorView({
   onExportDataJson,
   onOpenInstallGuide,
 }: ProfileCalculatorViewProps) {
-  const [formState, setFormState] = useState<UserProfileData>(profile);
+  const [formState, setFormState] = useState<ProfileFormState>(profile);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "offline">("idle");
   const [themePref, setThemePref] = useState<"system" | "dark" | "light">("system");
 
@@ -50,6 +67,29 @@ export function ProfileCalculatorView({
     setFormState(profile);
   }, [profile]);
 
+  // Perfil sanitizado numérico para cálculo de metas en vivo y envío al servidor
+  const normalizedProfile: UserProfileData = {
+    sex: formState.sex,
+    age: formState.age === "" ? profile.age : (Number(formState.age) || profile.age),
+    height_cm: formState.height_cm === "" ? profile.height_cm : (Number(formState.height_cm) || profile.height_cm),
+    current_weight_kg:
+      formState.current_weight_kg === "" ? profile.current_weight_kg : (Number(formState.current_weight_kg) || profile.current_weight_kg),
+    current_body_fat_pct:
+      formState.current_body_fat_pct === "" || formState.current_body_fat_pct == null
+        ? null
+        : Number(formState.current_body_fat_pct),
+    target_body_fat_pct:
+      formState.target_body_fat_pct === "" ? profile.target_body_fat_pct : (Number(formState.target_body_fat_pct) || profile.target_body_fat_pct),
+    activity_level: formState.activity_level,
+    target_weekly_loss_pct: formState.target_weekly_loss_pct,
+    carb_cycling_enabled: formState.carb_cycling_enabled,
+    protein_g_per_kg: formState.protein_g_per_kg,
+    calorie_backfill_ratio: formState.calorie_backfill_ratio,
+    injuries_or_restrictions: formState.injuries_or_restrictions,
+    primary_sport_focus: formState.primary_sport_focus,
+    bf_measurement_method: formState.bf_measurement_method,
+  };
+
   // Sincronización continua automática: cualquier cambio se guarda solo tras 800ms
   useEffect(() => {
     if (isFirstMountRef.current) {
@@ -60,10 +100,19 @@ export function ProfileCalculatorView({
       isRemoteSyncRef.current = false;
       return;
     }
+    // No auto-guardar si el usuario está borrando temporalmente para escribir un nuevo valor
+    if (
+      formState.current_weight_kg === "" ||
+      formState.height_cm === "" ||
+      formState.age === "" ||
+      formState.target_body_fat_pct === ""
+    ) {
+      return;
+    }
     setSaveStatus("saving");
     const timer = setTimeout(async () => {
       try {
-        await onSaveProfile(formState);
+        await onSaveProfile(normalizedProfile);
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 3500);
       } catch {
@@ -98,13 +147,13 @@ export function ProfileCalculatorView({
     }
   };
 
-  const liveTargets = computeNutritionTargets(formState);
+  const liveTargets = computeNutritionTargets(normalizedProfile);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveStatus("saving");
     try {
-      await onSaveProfile(formState);
+      await onSaveProfile(normalizedProfile);
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 4000);
     } catch {
@@ -250,9 +299,7 @@ export function ProfileCalculatorView({
               max={95}
               required
               value={formState.age}
-              onChange={(e) =>
-                setFormState({ ...formState, age: Number(e.target.value) || 25 })
-              }
+              onChange={(e) => setFormState({ ...formState, age: e.target.value })}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
             />
           </div>
@@ -268,12 +315,7 @@ export function ProfileCalculatorView({
               max={230}
               required
               value={formState.height_cm}
-              onChange={(e) =>
-                setFormState({
-                  ...formState,
-                  height_cm: Number(e.target.value) || 170,
-                })
-              }
+              onChange={(e) => setFormState({ ...formState, height_cm: e.target.value })}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
             />
           </div>
@@ -288,12 +330,7 @@ export function ProfileCalculatorView({
               step="0.1"
               required
               value={formState.current_weight_kg}
-              onChange={(e) =>
-                setFormState({
-                  ...formState,
-                  current_weight_kg: Number(e.target.value) || 70,
-                })
-              }
+              onChange={(e) => setFormState({ ...formState, current_weight_kg: e.target.value })}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
             />
           </div>
@@ -308,13 +345,7 @@ export function ProfileCalculatorView({
               step="0.1"
               placeholder="Vacío = usa Mifflin"
               value={formState.current_body_fat_pct ?? ""}
-              onChange={(e) =>
-                setFormState({
-                  ...formState,
-                  current_body_fat_pct:
-                    e.target.value === "" ? null : Number(e.target.value),
-                })
-              }
+              onChange={(e) => setFormState({ ...formState, current_body_fat_pct: e.target.value })}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
             />
           </div>
@@ -337,12 +368,7 @@ export function ProfileCalculatorView({
               max={40}
               required
               value={formState.target_body_fat_pct}
-              onChange={(e) =>
-                setFormState({
-                  ...formState,
-                  target_body_fat_pct: Number(e.target.value) || 12,
-                })
-              }
+              onChange={(e) => setFormState({ ...formState, target_body_fat_pct: e.target.value })}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
             />
           </div>

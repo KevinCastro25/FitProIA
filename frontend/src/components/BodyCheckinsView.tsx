@@ -38,19 +38,19 @@ export function BodyCheckinsView({
   const latest = checkins[checkins.length - 1];
   const first = checkins[0];
 
-  const [weightKg, setWeightKg] = useState(latest?.weight_kg ?? 76.4);
-  const [bodyFatPct, setBodyFatPct] = useState(latest?.body_fat_pct ?? 15.8);
+  const [weightKg, setWeightKg] = useState<string | number>(latest?.weight_kg ?? 76.4);
+  const [bodyFatPct, setBodyFatPct] = useState<string | number>(latest?.body_fat_pct ?? 15.8);
   const [bfMethod, setBfMethod] = useState<BodyCheckinItem["bf_method"]>(
     latest?.bf_method ?? "PLIEGUES"
   );
   const [conditions, setConditions] = useState<
     BodyCheckinItem["measurement_conditions"]
   >(latest?.measurement_conditions ?? "AYUNAS_MANANA");
-  const [waistCm, setWaistCm] = useState(latest?.waist_cm ?? 79.8);
-  const [hipCm, setHipCm] = useState(latest?.hip_cm ?? 95.0);
-  const [chestCm, setChestCm] = useState(latest?.chest_cm ?? 103.5);
-  const [armCm, setArmCm] = useState(latest?.arm_cm ?? 37.8);
-  const [thighCm, setThighCm] = useState(latest?.thigh_cm ?? 58.4);
+  const [waistCm, setWaistCm] = useState<string | number>(latest?.waist_cm ?? 79.8);
+  const [hipCm, setHipCm] = useState<string | number>(latest?.hip_cm ?? 95.0);
+  const [chestCm, setChestCm] = useState<string | number>(latest?.chest_cm ?? 103.5);
+  const [armCm, setArmCm] = useState<string | number>(latest?.arm_cm ?? 37.8);
+  const [thighCm, setThighCm] = useState<string | number>(latest?.thigh_cm ?? 58.4);
   const [energyLevel, setEnergyLevel] = useState(4);
   const [sleepQuality, setSleepQuality] = useState(4);
   const [strengthPerformance, setStrengthPerformance] = useState(5);
@@ -60,15 +60,15 @@ export function BodyCheckinsView({
     e.preventDefault();
     onAddCheckin({
       checkin_date: new Date().toISOString().split("T")[0],
-      weight_kg: weightKg,
-      body_fat_pct: bodyFatPct,
+      weight_kg: Number(weightKg) || 70,
+      body_fat_pct: Number(bodyFatPct) || 15,
       bf_method: bfMethod,
       measurement_conditions: conditions,
-      waist_cm: waistCm,
-      hip_cm: hipCm,
-      chest_cm: chestCm,
-      arm_cm: armCm,
-      thigh_cm: thighCm,
+      waist_cm: Number(waistCm) || 80,
+      hip_cm: Number(hipCm) || 95,
+      chest_cm: Number(chestCm) || 100,
+      arm_cm: Number(armCm) || 36,
+      thigh_cm: Number(thighCm) || 56,
       energy_level: energyLevel,
       sleep_quality: sleepQuality,
       strength_performance: strengthPerformance,
@@ -259,7 +259,7 @@ export function BodyCheckinsView({
               max={55}
               required
               value={bodyFatPct}
-              onChange={(e) => setBodyFatPct(Number(e.target.value) || 0)}
+              onChange={(e) => setBodyFatPct(e.target.value)}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-bold text-white"
             />
           </div>
@@ -324,7 +324,7 @@ export function BodyCheckinsView({
               max={220}
               required
               value={weightKg}
-              onChange={(e) => setWeightKg(Number(e.target.value) || 0)}
+              onChange={(e) => setWeightKg(e.target.value)}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
             />
           </div>
@@ -347,7 +347,7 @@ export function BodyCheckinsView({
                 step="0.1"
                 required
                 value={waistCm}
-                onChange={(e) => setWaistCm(Number(e.target.value) || 0)}
+                onChange={(e) => setWaistCm(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
               />
             </div>
@@ -361,7 +361,7 @@ export function BodyCheckinsView({
                 type="number"
                 step="0.1"
                 value={hipCm}
-                onChange={(e) => setHipCm(Number(e.target.value) || 0)}
+                onChange={(e) => setHipCm(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
               />
             </div>
@@ -375,7 +375,7 @@ export function BodyCheckinsView({
                 type="number"
                 step="0.1"
                 value={chestCm}
-                onChange={(e) => setChestCm(Number(e.target.value) || 0)}
+                onChange={(e) => setChestCm(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
               />
             </div>
@@ -389,7 +389,7 @@ export function BodyCheckinsView({
                 type="number"
                 step="0.1"
                 value={armCm}
-                onChange={(e) => setArmCm(Number(e.target.value) || 0)}
+                onChange={(e) => setArmCm(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
               />
             </div>
@@ -403,7 +403,7 @@ export function BodyCheckinsView({
                 type="number"
                 step="0.1"
                 value={thighCm}
-                onChange={(e) => setThighCm(Number(e.target.value) || 0)}
+                onChange={(e) => setThighCm(e.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
               />
             </div>

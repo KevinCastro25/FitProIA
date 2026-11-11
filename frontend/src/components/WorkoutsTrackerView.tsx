@@ -63,8 +63,8 @@ export function WorkoutsTrackerView({
   );
   const [modality, setModality] = useState<WorkoutModality>("GYM");
   const [title, setTitle] = useState("Entrenamiento de Gym");
-  const [durationMin, setDurationMin] = useState<number>(60);
-  const [kcalBurned, setKcalBurned] = useState<number>(390);
+  const [durationMin, setDurationMin] = useState<string | number>(60);
+  const [kcalBurned, setKcalBurned] = useState<string | number>(390);
   const [notes, setNotes] = useState<string>("");
   const [savedToast, setSavedToast] = useState<string | null>(null);
 
@@ -74,28 +74,34 @@ export function WorkoutsTrackerView({
     }
   }, [selectedDate]);
 
-  // Actualizar sugerencia de calorías al cambiar duración o modalidad (si no ha sido modificada manualmente)
+  // Actualizar sugerencia de calorías al cambiar duración o modalidad
   const handleModalityChange = (newModality: WorkoutModality) => {
     setModality(newModality);
     const modObj = MODALITY_OPTIONS.find((m) => m.id === newModality);
     const label = modObj ? modObj.label : "Entrenamiento";
     setTitle(`Entrenamiento de ${label}`);
     const rate = modObj ? modObj.defaultKcalPerMin : 7.0;
-    setKcalBurned(Math.round(durationMin * rate));
+    const durNum = Number(durationMin) || 0;
+    if (durNum > 0) {
+      setKcalBurned(Math.round(durNum * rate));
+    }
   };
 
-  const handleDurationChange = (minutes: number) => {
-    setDurationMin(minutes);
-    const modObj = MODALITY_OPTIONS.find((m) => m.id === modality);
-    const rate = modObj ? modObj.defaultKcalPerMin : 7.0;
-    setKcalBurned(Math.round(minutes * rate));
+  const handleDurationChange = (val: string) => {
+    setDurationMin(val);
+    const num = Number(val);
+    if (!isNaN(num) && num > 0) {
+      const modObj = MODALITY_OPTIONS.find((m) => m.id === modality);
+      const rate = modObj ? modObj.defaultKcalPerMin : 7.0;
+      setKcalBurned(Math.round(num * rate));
+    }
   };
 
   const handleSubmitWorkout = (e: React.FormEvent) => {
     e.preventDefault();
     const finalTitle = title.trim() || `Entrenamiento de ${modality}`;
-    const finalDuration = Math.max(1, durationMin);
-    const finalKcal = Math.max(0, kcalBurned);
+    const finalDuration = Math.max(1, Number(durationMin) || 30);
+    const finalKcal = Math.max(0, Number(kcalBurned) || 200);
 
     onSaveWorkout({
       session_date: sessionDate,
@@ -258,7 +264,7 @@ export function WorkoutsTrackerView({
                   max={720}
                   required
                   value={durationMin}
-                  onChange={(e) => handleDurationChange(Number(e.target.value) || 0)}
+                  onChange={(e) => handleDurationChange(e.target.value)}
                   className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-sm font-bold text-white"
                 />
               </div>
@@ -279,7 +285,7 @@ export function WorkoutsTrackerView({
                   max={5000}
                   required
                   value={kcalBurned}
-                  onChange={(e) => setKcalBurned(Number(e.target.value) || 0)}
+                  onChange={(e) => setKcalBurned(e.target.value)}
                   className="w-full rounded-2xl border border-amber-500/40 bg-slate-950 px-3.5 py-2.5 text-sm font-black text-amber-300"
                 />
               </div>
