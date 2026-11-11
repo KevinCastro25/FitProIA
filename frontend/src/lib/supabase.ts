@@ -91,6 +91,18 @@ if (typeof window !== "undefined") {
   installAuthFetch();
 }
 
+export async function getAuthHeaders(): Promise<Record<string, string>> {
+  if (!AUTH_ENABLED) return {};
+  try {
+    const { data } = await getSupabase().auth.getSession();
+    const token = data.session?.access_token;
+    if (token) {
+      return { Authorization: `Bearer ${token}` };
+    }
+  } catch {}
+  return {};
+}
+
 export async function signOut() {
   if (AUTH_ENABLED) await getSupabase().auth.signOut();
 }

@@ -219,46 +219,53 @@ def delete_my_account(
 def _save_profile_and_targets(
     db: Session, user_id: str, payload: UserProfileInput
 ) -> ProfileAndTargetsResponse:
-    prof = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
-    if not prof:
-        prof = UserProfile(user_id=user_id, **payload.model_dump())
-        db.add(prof)
-    else:
-        for k, v in payload.model_dump().items():
-            setattr(prof, k, v)
+    try:
+        prof = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+        if not prof:
+            prof = UserProfile(user_id=user_id, **payload.model_dump())
+            db.add(prof)
+        else:
+            for k, v in payload.model_dump().items():
+                setattr(prof, k, v)
 
-    calc = calculate_nutrition_plan(payload)
-    target = db.query(NutritionTarget).filter(NutritionTarget.user_id == user_id).first()
-    target_data = {
-        "formula_used": calc.formula_used,
-        "lean_body_mass_kg": calc.lean_body_mass_kg,
-        "fat_mass_kg": calc.fat_mass_kg,
-        "bmr_kcal": calc.bmr_kcal,
-        "tdee_base_kcal": calc.tdee_base_kcal,
-        "tdee_lower_bound_kcal": calc.tdee_lower_bound_kcal,
-        "tdee_upper_bound_kcal": calc.tdee_upper_bound_kcal,
-        "target_daily_kcal": calc.target_daily_kcal,
-        "training_day_kcal": calc.training_day_kcal,
-        "rest_day_kcal": calc.rest_day_kcal,
-        "min_safe_kcal": calc.min_safe_kcal,
-        "protein_target_g": calc.protein_target_g,
-        "fat_target_g": calc.fat_target_g,
-        "carbs_training_day_g": calc.carbs_training_day_g,
-        "carbs_rest_day_g": calc.carbs_rest_day_g,
-        "fiber_target_g": calc.fiber_target_g,
-        "water_target_ml": calc.water_target_ml,
-        "daily_steps_target": calc.daily_steps_target,
-        "warnings_json": json.dumps(calc.warnings, ensure_ascii=False),
-    }
-    if not target:
-        target = NutritionTarget(user_id=user_id, **target_data)
-        db.add(target)
-    else:
-        for k, v in target_data.items():
-            setattr(target, k, v)
+        calc = calculate_nutrition_plan(payload)
+        target = db.query(NutritionTarget).filter(NutritionTarget.user_id == user_id).first()
+        target_data = {
+            "formula_used": str(calc.formula_used),
+            "lean_body_mass_kg": float(calc.lean_body_mass_kg),
+            "fat_mass_kg": float(calc.fat_mass_kg),
+            "bmr_kcal": int(round(calc.bmr_kcal)),
+            "tdee_base_kcal": int(round(calc.tdee_base_kcal)),
+            "tdee_lower_bound_kcal": int(round(calc.tdee_lower_bound_kcal)),
+            "tdee_upper_bound_kcal": int(round(calc.tdee_upper_bound_kcal)),
+            "target_daily_kcal": int(round(calc.target_daily_kcal)),
+            "training_day_kcal": int(round(calc.training_day_kcal)),
+            "rest_day_kcal": int(round(calc.rest_day_kcal)),
+            "min_safe_kcal": int(round(calc.min_safe_kcal)),
+            "protein_target_g": int(round(calc.protein_target_g)),
+            "fat_target_g": int(round(calc.fat_target_g)),
+            "carbs_training_day_g": int(round(calc.carbs_training_day_g)),
+            "carbs_rest_day_g": int(round(calc.carbs_rest_day_g)),
+            "fiber_target_g": int(round(calc.fiber_target_g)),
+            "water_target_ml": int(round(calc.water_target_ml)),
+            "daily_steps_target": int(round(calc.daily_steps_target)),
+            "warnings_json": json.dumps(calc.warnings, ensure_ascii=False),
+        }
+        if not target:
+            target = NutritionTarget(user_id=user_id, **target_data)
+            db.add(target)
+        else:
+            for k, v in target_data.items():
+                setattr(target, k, v)
 
-    db.commit()
-    return ProfileAndTargetsResponse(profile=payload, targets=calc)
+        db.commit()
+        return ProfileAndTargetsResponse(profile=payload, targets=calc)
+    except Exception as err:
+        db.rollback()
+        import traceback
+        tb = traceback.format_exc()
+        print(f"Error in _save_profile_and_targets: {tb}", flush=True)
+        raise
 
 
 @api_router.get("/profile", response_model=ProfileAndTargetsResponse, tags=["Perfil & Nutrición"])

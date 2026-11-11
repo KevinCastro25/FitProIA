@@ -39,7 +39,7 @@ import { WorkoutsTrackerView } from "@/components/WorkoutsTrackerView";
 import { BodyCheckinsView } from "@/components/BodyCheckinsView";
 import { ProfileCalculatorView } from "@/components/ProfileCalculatorView";
 import { calculateDynamicBudgetClient } from "@/lib/health-bridge";
-import { AUTH_ENABLED, signOut, API_BASE, getSupabase, installAuthFetch } from "@/lib/supabase";
+import { AUTH_ENABLED, signOut, API_BASE, getSupabase, installAuthFetch, getAuthHeaders } from "@/lib/supabase";
 import { CompetitionsAndRedsView } from "@/components/CompetitionsAndRedsView";
 import { CoachHealthExtrasView } from "@/components/CoachHealthExtrasView";
 
@@ -94,11 +94,12 @@ export default function FitProIAPwaApp() {
     setPendingOfflineCount(queue.length);
     if (queue.length === 0) return;
 
+    const authH = await getAuthHeaders();
     for (const item of queue) {
       try {
         const res = await fetch(`${API_BASE}${item.endpoint}`, {
           method: item.method,
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authH },
           body: JSON.stringify(item.payload),
         });
         if (res.ok) {
@@ -124,12 +125,15 @@ export default function FitProIAPwaApp() {
       installAuthFetch();
       await flushOfflineOutbox();
 
+      const authH = await getAuthHeaders();
+      const reqHeaders = { "Content-Type": "application/json", ...authH };
+
       const [profRes, foodsRes, mealsRes, workRes, chkRes] = await Promise.all([
-        fetch(`${API_BASE}/profile`),
-        fetch(`${API_BASE}/foods`),
-        fetch(`${API_BASE}/meals?log_date=${dateToSync}`),
-        fetch(`${API_BASE}/workouts`),
-        fetch(`${API_BASE}/checkins`),
+        fetch(`${API_BASE}/profile`, { headers: reqHeaders }),
+        fetch(`${API_BASE}/foods`, { headers: reqHeaders }),
+        fetch(`${API_BASE}/meals?log_date=${dateToSync}`, { headers: reqHeaders }),
+        fetch(`${API_BASE}/workouts`, { headers: reqHeaders }),
+        fetch(`${API_BASE}/checkins`, { headers: reqHeaders }),
       ]);
 
       if (profRes.ok) {
@@ -340,9 +344,10 @@ export default function FitProIAPwaApp() {
     await idbSet("meals", updated);
 
     try {
+      const authH = await getAuthHeaders();
       const res = await fetch(`${API_BASE}/meals`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authH },
         body: JSON.stringify(item),
       });
       if (!res.ok) throw new Error("Offline queue");
@@ -378,7 +383,11 @@ export default function FitProIAPwaApp() {
     setMeals(updated);
     await idbSet("meals", updated);
     try {
-      await fetch(`${API_BASE}/meals/${id}`, { method: "DELETE" });
+      const authH = await getAuthHeaders();
+      await fetch(`${API_BASE}/meals/${id}`, {
+        method: "DELETE",
+        headers: { ...authH },
+      });
     } catch {
       // Ignorar si era local
     }
@@ -396,9 +405,10 @@ export default function FitProIAPwaApp() {
     await idbSet("workouts", updated);
 
     try {
+      const authH = await getAuthHeaders();
       const res = await fetch(`${API_BASE}/workouts`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authH },
         body: JSON.stringify({
           ...newWorkout,
           client_mutation_id: mutationId,
@@ -444,9 +454,10 @@ export default function FitProIAPwaApp() {
     await idbSet("checkins", updated);
 
     try {
+      const authH = await getAuthHeaders();
       await fetch(`${API_BASE}/checkins`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authH },
         body: JSON.stringify(input),
       });
     } catch {
@@ -466,9 +477,10 @@ export default function FitProIAPwaApp() {
     setProfile(newProf);
     await idbSet("profile", newProf);
     try {
+      const authH = await getAuthHeaders();
       const res = await fetch(`${API_BASE}/profile`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authH },
         body: JSON.stringify(newProf),
       });
       if (!res.ok) {
