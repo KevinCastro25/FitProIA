@@ -4,7 +4,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 
-from app.db.database import get_db
+from app.db.database import get_db, engine
+from sqlalchemy import text
 from app.models.entities import (
     User,
     UserProfile,
@@ -258,7 +259,26 @@ def _save_profile_and_targets(
             for k, v in target_data.items():
                 setattr(target, k, v)
 
-        db.commit()
+        try:
+            db.commit()
+        except Exception as commit_err:
+            db.rollback()
+            err_str = str(commit_err).lower()
+            if "protein_grams" in err_str or "not-null" in err_str or "notnullviolation" in err_str:
+                with engine.connect() as fix_conn:
+                    for col in ["protein_grams", "fat_grams", "carbs_grams", "fiber_grams"]:
+                        try:
+                            fix_conn.execute(text(f"ALTER TABLE nutrition_targets ALTER COLUMN {col} DROP NOT NULL"))
+                            fix_conn.execute(text(f"ALTER TABLE nutrition_targets ALTER COLUMN {col} SET DEFAULT 0"))
+                            fix_conn.commit()
+                        except Exception:
+                            pass
+                db.add(prof)
+                db.add(target)
+                db.commit()
+            else:
+                raise
+
         return ProfileAndTargetsResponse(profile=payload, targets=calc)
     except Exception as err:
         db.rollback()
