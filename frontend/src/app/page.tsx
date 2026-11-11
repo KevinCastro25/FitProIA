@@ -39,15 +39,9 @@ import { WorkoutsTrackerView } from "@/components/WorkoutsTrackerView";
 import { BodyCheckinsView } from "@/components/BodyCheckinsView";
 import { ProfileCalculatorView } from "@/components/ProfileCalculatorView";
 import { calculateDynamicBudgetClient } from "@/lib/health-bridge";
-import { AUTH_ENABLED, signOut } from "@/lib/supabase";
+import { AUTH_ENABLED, signOut, API_BASE, getSupabase, installAuthFetch } from "@/lib/supabase";
 import { CompetitionsAndRedsView } from "@/components/CompetitionsAndRedsView";
 import { CoachHealthExtrasView } from "@/components/CoachHealthExtrasView";
-
-const rawApi =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-const API_BASE = rawApi.includes("/api/v1")
-  ? rawApi.replace(/\/+$/, "")
-  : `${rawApi.replace(/\/+$/, "")}/api/v1`;
 
 type NavTab = "diario" | "comidas" | "entreno" | "progreso" | "coach" | "perfil";
 
@@ -144,11 +138,22 @@ export default function FitProIAPwaApp() {
 
     // Cargar caché de IndexedDB primero y luego sincronizar desde FastAPI / Supabase
     (async () => {
+      installAuthFetch();
       if (AUTH_ENABLED) {
         // Cuenta real: no mostrar datos de demostración
         setMeals([]);
         setWorkouts([]);
         setCheckins([]);
+        try {
+          // Espera breve a que Supabase recupere la sesión local de IndexedDB/localStorage
+          const sb = getSupabase();
+          const { data } = await sb.auth.getSession();
+          if (!data?.session) {
+            await new Promise((r) => setTimeout(r, 200));
+          }
+        } catch {
+          // ignore
+        }
       }
       const cachedProfile = await idbGet<UserProfileData>("profile");
       if (cachedProfile) setProfile(cachedProfile);
@@ -169,8 +174,10 @@ export default function FitProIAPwaApp() {
         ]);
         if (profRes.ok) {
           const data = await profRes.json();
-          setProfile(data.profile);
-          await idbSet("profile", data.profile);
+          if (data?.profile) {
+            setProfile(data.profile);
+            await idbSet("profile", data.profile);
+          }
         }
         if (foodsRes.ok) {
           const data = await foodsRes.json();
@@ -202,9 +209,36 @@ export default function FitProIAPwaApp() {
       }
     })();
 
+    // Sincronización reactiva cuando el usuario inicia sesión o refresca token
+    let authSub: { unsubscribe: () => void } | null = null;
+    if (AUTH_ENABLED) {
+      try {
+        const { data } = getSupabase().auth.onAuthStateChange(async (event, s) => {
+          if (s?.access_token && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
+            try {
+              const pRes = await fetch(`${API_BASE}/profile`);
+              if (pRes.ok) {
+                const pData = await pRes.json();
+                if (pData?.profile) {
+                  setProfile(pData.profile);
+                  await idbSet("profile", pData.profile);
+                }
+              }
+            } catch {
+              // ignore
+            }
+          }
+        });
+        authSub = data.subscription;
+      } catch {
+        // ignore
+      }
+    }
+
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      if (authSub) authSub.unsubscribe();
     };
   }, [flushOfflineOutbox, todayStr]);
 
@@ -406,9 +440,10 @@ export default function FitProIAPwaApp() {
         body: JSON.stringify(newProf),
       });
       if (!res.ok) {
-        throw new Error(`Error servidor: ${res.status}`);
+        const errText = await res.text().catch(() => "");
+        throw new Error(`Error servidor: ${res.status} ${errText}`);
       }
-    } catch {
+    } catch (err) {
       await enqueueOfflineMutation({
         mutationId: `mut-prof-${Date.now()}`,
         endpoint: "/profile",
@@ -418,6 +453,7 @@ export default function FitProIAPwaApp() {
       });
       const q = await getOfflineOutbox();
       setPendingOfflineCount(q.length);
+      throw err;
     }
   };
 

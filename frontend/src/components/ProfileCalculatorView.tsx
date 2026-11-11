@@ -23,7 +23,7 @@ interface ProfileCalculatorViewProps {
   isStandalone: boolean;
   profile: UserProfileData;
   targets: NutritionTargetsData;
-  onSaveProfile: (newProfile: UserProfileData) => void;
+  onSaveProfile: (newProfile: UserProfileData) => Promise<void> | void;
   onExportDataJson: () => void;
   onOpenInstallGuide: () => void;
 }
@@ -38,8 +38,13 @@ export function ProfileCalculatorView({
   onOpenInstallGuide,
 }: ProfileCalculatorViewProps) {
   const [formState, setFormState] = useState<UserProfileData>(profile);
-  const [savedNotice, setSavedNotice] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "offline">("idle");
   const [themePref, setThemePref] = useState<"system" | "dark" | "light">("system");
+
+  // Mantener el formulario sincronizado si el perfil cambia remotamente (sync desde Supabase / otra pestaña)
+  useEffect(() => {
+    setFormState(profile);
+  }, [profile]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -66,11 +71,17 @@ export function ProfileCalculatorView({
 
   const liveTargets = computeNutritionTargets(formState);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSaveProfile(formState);
-    setSavedNotice(true);
-    setTimeout(() => setSavedNotice(false), 3000);
+    setSaveStatus("saving");
+    try {
+      await onSaveProfile(formState);
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 4000);
+    } catch {
+      setSaveStatus("offline");
+      setTimeout(() => setSaveStatus("idle"), 4000);
+    }
   };
 
   return (
@@ -464,15 +475,30 @@ export function ProfileCalculatorView({
         </div>
 
         <div className="flex items-center justify-between gap-4 pt-2">
-          {savedNotice ? (
+          {saveStatus === "saving" && (
+            <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
+              Sincronizando con el servidor...
+            </span>
+          )}
+          {saveStatus === "saved" && (
             <span
               role="status"
               aria-live="polite"
               className="text-xs font-bold text-emerald-400 flex items-center gap-1"
             >
-              <Check className="h-4 w-4" /> Perfil y metas actualizados
+              <Check className="h-4 w-4" /> Perfil sincronizado con la nube (Supabase)
             </span>
-          ) : (
+          )}
+          {saveStatus === "offline" && (
+            <span
+              role="status"
+              aria-live="polite"
+              className="text-xs font-bold text-amber-300 flex items-center gap-1"
+            >
+              ⚠️ Guardado localmente (se sincronizará al conectar)
+            </span>
+          )}
+          {saveStatus === "idle" && (
             <span className="text-xs text-slate-400">
               Piso seguro calculado: {liveTargets.min_safe_kcal} kcal/día
             </span>
