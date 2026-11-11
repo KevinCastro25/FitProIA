@@ -63,6 +63,7 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health", tags=["Salud del Sistema"])
+@app.head("/health", tags=["Salud del Sistema"])
 def health_check():
     return {
         "status": "ok",
@@ -70,3 +71,10 @@ def health_check():
         "version": settings.APP_VERSION,
         "pwa_ios_ready": True,
     }
+
+
+@app.get("/ping", tags=["Salud del Sistema"])
+@app.head("/ping", tags=["Salud del Sistema"])
+def ping():
+    """Endpoint ultra liviano (4 bytes) para cronjobs anti-inactividad."""
+    return "pong"
