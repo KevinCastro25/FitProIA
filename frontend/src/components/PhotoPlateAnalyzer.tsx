@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Camera,
+  Image as ImageIcon,
   Sparkles,
   AlertCircle,
   CheckCircle2,
@@ -87,6 +88,9 @@ export function PhotoPlateAnalyzer({
     QueuedOfflinePhoto[]
   >([]);
 
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     getOfflinePhotoQueue().then(setOfflinePhotoQueue);
   }, []);
@@ -108,6 +112,10 @@ export function PhotoPlateAnalyzer({
       setSavedSuccessMsg(null);
     } catch {
       // Fallback directo si falla canvas
+    } finally {
+      if (e.target) {
+        e.target.value = "";
+      }
     }
   };
 
@@ -477,9 +485,17 @@ export function PhotoPlateAnalyzer({
             Foto del Plato o Alimento
           </h3>
 
-          <label
-            htmlFor="plate-photo-input"
-            className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-700 hover:border-emerald-500 bg-slate-950/70 p-4 text-center cursor-pointer transition"
+          <div
+            onClick={() => galleryInputRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                galleryInputRef.current?.click();
+              }
+            }}
+            className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-700 hover:border-emerald-500 bg-slate-950/70 p-4 text-center cursor-pointer transition focus:outline-none focus:border-emerald-500"
           >
             {imagePreview ? (
               <div className="space-y-2 w-full">
@@ -497,25 +513,61 @@ export function PhotoPlateAnalyzer({
               </div>
             ) : (
               <div className="space-y-1.5 py-4">
-                <Camera className="h-8 w-8 text-emerald-400 mx-auto" />
+                <div className="flex items-center justify-center gap-2 text-emerald-400 mx-auto">
+                  <ImageIcon className="h-7 w-7" />
+                  <span className="text-slate-500 font-light">/</span>
+                  <Camera className="h-7 w-7" />
+                </div>
                 <span className="text-xs font-bold text-white block">
-                  Tomar Foto o Elegir de Galería
+                  Subir Foto o Tomar con Cámara
                 </span>
                 <span className="text-[11px] text-slate-400 block">
-                  Apunta a tu comida desde arriba o en ángulo de 45°
+                  Selecciona una imagen de tu dispositivo o toma una foto directa
                 </span>
               </div>
             )}
-            <input
-              id="plate-photo-input"
-              name="plate_photo"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleFileChange}
-              className="sr-only"
-            />
-          </label>
+          </div>
+
+          {/* Botones dedicados para Galería y Cámara */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => galleryInputRef.current?.click()}
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/50 bg-emerald-500/15 hover:bg-emerald-500/25 px-3 py-2.5 text-xs font-bold text-emerald-300 transition active:scale-95 shadow-sm"
+            >
+              <ImageIcon className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span>{imagePreview ? "Cambiar Galería" : "Elegir Galería"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/50 bg-cyan-500/15 hover:bg-cyan-500/25 px-3 py-2.5 text-xs font-bold text-cyan-300 transition active:scale-95 shadow-sm"
+            >
+              <Camera className="h-4 w-4 text-cyan-400 shrink-0" />
+              <span>{imagePreview ? "Tomar Nueva" : "Tomar Foto"}</span>
+            </button>
+          </div>
+
+          {/* Inputs nativos ocultos */}
+          <input
+            ref={galleryInputRef}
+            id="plate-gallery-input"
+            name="plate_gallery"
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="sr-only"
+          />
+          <input
+            ref={cameraInputRef}
+            id="plate-camera-input"
+            name="plate_camera"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileChange}
+            className="sr-only"
+          />
 
           <div>
             <label
