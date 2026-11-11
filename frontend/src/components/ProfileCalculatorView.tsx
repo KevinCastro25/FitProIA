@@ -45,6 +45,28 @@ type ProfileFormState = {
   bf_measurement_method: UserProfileData["bf_measurement_method"];
 };
 
+// Huella canónica (orden fijo y números normalizados) para comparar perfiles sin falsos cambios
+function profileFingerprint(p: Record<string, unknown>): string {
+  const num = (v: unknown) =>
+    v === null || v === undefined || v === "" ? null : Math.round(Number(v) * 1000) / 1000;
+  return JSON.stringify([
+    p.sex,
+    num(p.age),
+    num(p.height_cm),
+    num(p.current_weight_kg),
+    num(p.current_body_fat_pct),
+    num(p.target_body_fat_pct),
+    p.activity_level,
+    num(p.target_weekly_loss_pct),
+    !!p.carb_cycling_enabled,
+    num(p.protein_g_per_kg),
+    num(p.calorie_backfill_ratio),
+    p.injuries_or_restrictions ?? "",
+    p.primary_sport_focus ?? "",
+    p.bf_measurement_method ?? "",
+  ]);
+}
+
 export function ProfileCalculatorView({
   apiBase,
   isStandalone,
@@ -58,12 +80,20 @@ export function ProfileCalculatorView({
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "offline">("idle");
   const [themePref, setThemePref] = useState<"system" | "dark" | "light">("system");
 
-  const isFirstMountRef = useRef(true);
-  const isRemoteSyncRef = useRef(false);
+  // Referencias estables para evitar bucles guardar -> sincronizar -> guardar
+  const onSaveProfileRef = useRef(onSaveProfile);
+  onSaveProfileRef.current = onSaveProfile;
+  // Última huella (JSON) del perfil que ya está en el servidor / viene del servidor
+  const lastSyncedJsonRef = useRef<string>(
+    profileFingerprint(profile as unknown as Record<string, unknown>)
+  );
 
-  // Mantener el formulario sincronizado si el perfil cambia remotamente (sync desde Supabase / otra pestaña)
+  // Mantener el formulario sincronizado si el perfil cambia remotamente (sync desde Supabase / otra pestaña).
+  // Solo se aplica si el CONTENIDO realmente cambió (evita reinicios por nuevas referencias del objeto).
   useEffect(() => {
-    isRemoteSyncRef.current = true;
+    const incomingJson = profileFingerprint(profile as unknown as Record<string, unknown>);
+    if (incomingJson === lastSyncedJsonRef.current) return;
+    lastSyncedJsonRef.current = incomingJson;
     setFormState(profile);
   }, [profile]);
 
@@ -91,15 +121,12 @@ export function ProfileCalculatorView({
   };
 
   // Sincronización continua automática: cualquier cambio se guarda solo tras 800ms
+  const normalizedJson = profileFingerprint(normalizedProfile as unknown as Record<string, unknown>);
+  const normalizedProfileRef = useRef(normalizedProfile);
+  normalizedProfileRef.current = normalizedProfile;
   useEffect(() => {
-    if (isFirstMountRef.current) {
-      isFirstMountRef.current = false;
-      return;
-    }
-    if (isRemoteSyncRef.current) {
-      isRemoteSyncRef.current = false;
-      return;
-    }
+    // Sin cambios reales respecto a lo ya sincronizado: no hacer nada (rompe el bucle)
+    if (normalizedJson === lastSyncedJsonRef.current) return;
     // No auto-guardar si el usuario está borrando temporalmente para escribir un nuevo valor
     if (
       formState.current_weight_kg === "" ||
@@ -109,20 +136,24 @@ export function ProfileCalculatorView({
     ) {
       return;
     }
-    setSaveStatus("saving");
     const timer = setTimeout(async () => {
+      setSaveStatus("saving");
+      const snapshot = normalizedJson;
       try {
-        await onSaveProfile(normalizedProfile);
+        await onSaveProfileRef.current(normalizedProfileRef.current);
+        lastSyncedJsonRef.current = snapshot;
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 3500);
       } catch {
+        // Se encola offline; marcar como ya intentado para no reintentar en bucle
+        lastSyncedJsonRef.current = snapshot;
         setSaveStatus("offline");
         setTimeout(() => setSaveStatus("idle"), 3500);
       }
-    }, 800);
+    }, 1000);
 
     return () => clearTimeout(timer);
-  }, [formState, onSaveProfile]);
+  }, [normalizedJson]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -155,6 +186,7 @@ export function ProfileCalculatorView({
     const safetyTimer = setTimeout(() => {
       setSaveStatus((prev) => (prev === "saving" ? "offline" : prev));
     }, 8500);
+    lastSyncedJsonRef.current = normalizedJson;
     try {
       await onSaveProfile(normalizedProfile);
       clearTimeout(safetyTimer);
