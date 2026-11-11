@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Flame,
   Utensils,
@@ -112,7 +112,66 @@ export default function FitProIAPwaApp() {
     setPendingOfflineCount(remaining.length);
   }, []);
 
-  // Registro de Service Worker + Detección de modo Standalone en iPhone + Carga inicial
+  const isSyncingRef = useRef(false);
+
+  // Sincronización global bidireccional (FastAPI / Supabase <-> IndexedDB / Estado React)
+  const syncAllData = useCallback(async (targetDate?: string) => {
+    if (isSyncingRef.current) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    isSyncingRef.current = true;
+    const dateToSync = targetDate || selectedDate;
+    try {
+      installAuthFetch();
+      await flushOfflineOutbox();
+
+      const [profRes, foodsRes, mealsRes, workRes, chkRes] = await Promise.all([
+        fetch(`${API_BASE}/profile`),
+        fetch(`${API_BASE}/foods`),
+        fetch(`${API_BASE}/meals?log_date=${dateToSync}`),
+        fetch(`${API_BASE}/workouts`),
+        fetch(`${API_BASE}/checkins`),
+      ]);
+
+      if (profRes.ok) {
+        const data = await profRes.json();
+        if (data?.profile) {
+          setProfile(data.profile);
+          await idbSet("profile", data.profile);
+        }
+      }
+      if (foodsRes.ok) {
+        const data = await foodsRes.json();
+        if (Array.isArray(data) && data.length > 0) setFoods(data);
+      }
+      if (mealsRes.ok) {
+        const data = await mealsRes.json();
+        if (Array.isArray(data)) {
+          setMeals(data);
+          await idbSet("meals", data);
+        }
+      }
+      if (workRes.ok) {
+        const data = await workRes.json();
+        if (Array.isArray(data)) {
+          setWorkouts(data);
+          await idbSet("workouts", data);
+        }
+      }
+      if (chkRes.ok) {
+        const data = await chkRes.json();
+        if (Array.isArray(data)) {
+          setCheckins(data);
+          await idbSet("checkins", data);
+        }
+      }
+    } catch {
+      // Si el backend no está alcanzable temporalmente, continúa con IndexedDB
+    } finally {
+      isSyncingRef.current = false;
+    }
+  }, [flushOfflineOutbox, selectedDate]);
+
+  // Registro de Service Worker + Detección de modo Standalone en iPhone + Sincronización continua
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -129,23 +188,18 @@ export default function FitProIAPwaApp() {
 
     const handleOnline = () => {
       setIsOnline(true);
-      flushOfflineOutbox();
+      syncAllData();
     };
     const handleOffline = () => setIsOnline(false);
 
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    // Cargar caché de IndexedDB primero y luego sincronizar desde FastAPI / Supabase
+    // Cargar caché local primero para render instantáneo sin pantalla blanca
     (async () => {
       installAuthFetch();
       if (AUTH_ENABLED) {
-        // Cuenta real: no mostrar datos de demostración
         setMeals([]);
         setWorkouts([]);
         setCheckins([]);
         try {
-          // Espera breve a que Supabase recupere la sesión local de IndexedDB/localStorage
           const sb = getSupabase();
           const { data } = await sb.auth.getSession();
           if (!data?.session) {
@@ -164,69 +218,39 @@ export default function FitProIAPwaApp() {
       const cachedCheckins = await idbGet<BodyCheckinItem[]>("checkins");
       if (cachedCheckins && cachedCheckins.length > 0) setCheckins(cachedCheckins);
 
-      try {
-        const [profRes, foodsRes, mealsRes, workRes, chkRes] = await Promise.all([
-          fetch(`${API_BASE}/profile`),
-          fetch(`${API_BASE}/foods`),
-          fetch(`${API_BASE}/meals?log_date=${todayStr}`),
-          fetch(`${API_BASE}/workouts`),
-          fetch(`${API_BASE}/checkins`),
-        ]);
-        if (profRes.ok) {
-          const data = await profRes.json();
-          if (data?.profile) {
-            setProfile(data.profile);
-            await idbSet("profile", data.profile);
-          }
-        }
-        if (foodsRes.ok) {
-          const data = await foodsRes.json();
-          if (data.length > 0) setFoods(data);
-        }
-        if (mealsRes.ok) {
-          const data = await mealsRes.json();
-          if (data.length > 0) {
-            setMeals(data);
-            await idbSet("meals", data);
-          }
-        }
-        if (workRes.ok) {
-          const data = await workRes.json();
-          if (data.length > 0) {
-            setWorkouts(data);
-            await idbSet("workouts", data);
-          }
-        }
-        if (chkRes.ok) {
-          const data = await chkRes.json();
-          if (data.length > 0) {
-            setCheckins(data);
-            await idbSet("checkins", data);
-          }
-        }
-      } catch {
-        // Si el backend no está alcanzable, opera con la caché IndexedDB sin interrupción
-      }
+      // Descargar datos frescos de la nube
+      await syncAllData();
     })();
 
-    // Sincronización reactiva cuando el usuario inicia sesión o refresca token
+    // 1. Sincronizar siempre al cambiar de ventana / volver a la app / desbloquear teléfono
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        syncAllData();
+      }
+    };
+    const handleFocus = () => {
+      syncAllData();
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // 2. Polling continuo en segundo plano cada 20 segundos
+    const pollTimer = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        syncAllData();
+      }
+    }, 20000);
+
+    // 3. Sincronización reactiva con Supabase Auth (inicio de sesión / refresh)
     let authSub: { unsubscribe: () => void } | null = null;
     if (AUTH_ENABLED) {
       try {
         const { data } = getSupabase().auth.onAuthStateChange(async (event, s) => {
           if (s?.access_token && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
-            try {
-              const pRes = await fetch(`${API_BASE}/profile`);
-              if (pRes.ok) {
-                const pData = await pRes.json();
-                if (pData?.profile) {
-                  setProfile(pData.profile);
-                  await idbSet("profile", pData.profile);
-                }
-              }
-            } catch {
-              // ignore
-            }
+            syncAllData();
           }
         });
         authSub = data.subscription;
@@ -238,9 +262,17 @@ export default function FitProIAPwaApp() {
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearInterval(pollTimer);
       if (authSub) authSub.unsubscribe();
     };
-  }, [flushOfflineOutbox, todayStr]);
+  }, [syncAllData]);
+
+  // Sincronizar datos automáticamente al cambiar de pestaña en la navegación
+  useEffect(() => {
+    syncAllData();
+  }, [activeTab, syncAllData]);
 
   // Cálculos del Diario de Hoy
   const mealsForDate = meals.filter((m) => m.log_date === selectedDate);

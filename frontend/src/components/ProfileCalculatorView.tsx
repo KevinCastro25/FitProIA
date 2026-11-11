@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Calculator,
   ShieldCheck,
@@ -41,10 +41,39 @@ export function ProfileCalculatorView({
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "offline">("idle");
   const [themePref, setThemePref] = useState<"system" | "dark" | "light">("system");
 
+  const isFirstMountRef = useRef(true);
+  const isRemoteSyncRef = useRef(false);
+
   // Mantener el formulario sincronizado si el perfil cambia remotamente (sync desde Supabase / otra pestaña)
   useEffect(() => {
+    isRemoteSyncRef.current = true;
     setFormState(profile);
   }, [profile]);
+
+  // Sincronización continua automática: cualquier cambio se guarda solo tras 800ms
+  useEffect(() => {
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      return;
+    }
+    if (isRemoteSyncRef.current) {
+      isRemoteSyncRef.current = false;
+      return;
+    }
+    setSaveStatus("saving");
+    const timer = setTimeout(async () => {
+      try {
+        await onSaveProfile(formState);
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 3500);
+      } catch {
+        setSaveStatus("offline");
+        setTimeout(() => setSaveStatus("idle"), 3500);
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [formState, onSaveProfile]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
