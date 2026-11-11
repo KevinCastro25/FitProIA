@@ -204,26 +204,37 @@ export function PhotoPlateAnalyzer({
   const handleConfirmAndSave = async () => {
     if (!analysisResult || editableItems.length === 0) return;
 
-    try {
-      const authHeaders = await getAuthHeaders();
-      await fetch(
-        `${apiBase}/ai-vision/predictions/${analysisResult.prediction_id}/confirm`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeaders,
-          },
-          body: JSON.stringify({
-            log_date: selectedDate,
-            meal_type: selectedCategory,
-            corrected_items: editableItems,
-            client_mutation_id: `photo-${Date.now()}`,
-          }),
-        }
-      );
-    } catch {
-      // Se sincroniza vía IndexedDB local
+    // Solo reportar a /ai-vision/.../confirm para telemetría de aprendizaje si es una predicción de visión real
+    const predId = analysisResult.prediction_id || "";
+    const isRealVisionPrediction =
+      predId &&
+      !predId.startsWith("receta-") &&
+      !predId.startsWith("custom-dish-") &&
+      !predId.startsWith("combinacion-") &&
+      !predId.startsWith("pred-empty-");
+
+    if (isRealVisionPrediction) {
+      try {
+        const authHeaders = await getAuthHeaders();
+        await fetch(
+          `${apiBase}/ai-vision/predictions/${predId}/confirm`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...authHeaders,
+            },
+            body: JSON.stringify({
+              log_date: selectedDate,
+              meal_type: selectedCategory,
+              corrected_items: editableItems,
+              client_mutation_id: `photo-${Date.now()}`,
+            }),
+          }
+        );
+      } catch {
+        // Telemetría opcional
+      }
     }
 
     const prefix = inputMode === "FOTO" && imagePreview ? "[Foto IA]" : "[Receta]";
@@ -241,7 +252,13 @@ export function PhotoPlateAnalyzer({
     }));
 
     onMealsConfirmed(mealsToLog);
-    setSavedSuccessMsg(`¡${mealsToLog.length} ingrediente(s) agregados con éxito a tu ${selectedCategory.toLowerCase()}!`);
+    const count = mealsToLog.length;
+    setSavedSuccessMsg(`¡${count} alimento(s) guardado(s) con éxito en ${selectedCategory}!`);
+    setImagePreview("");
+    setEditableItems([]);
+    setAnalysisResult(null);
+    setUserHint("");
+    setTimeout(() => setSavedSuccessMsg(null), 4000);
   };
 
   const totalEditedKcal = editableItems.reduce((a, b) => a + b.kcal, 0);

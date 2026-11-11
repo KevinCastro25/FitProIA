@@ -56,8 +56,16 @@ function sortKeys(o: unknown): unknown {
   );
 }
 
+function getLocalTodayStr(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export default function FitProIAPwaApp() {
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getLocalTodayStr();
   const [activeTab, setActiveTab] = useState<NavTab>("diario");
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
@@ -209,19 +217,40 @@ export default function FitProIAPwaApp() {
       }
       if (foodsRes.ok) {
         const data = await foodsRes.json();
-        if (Array.isArray(data) && data.length > 0) setFoods(data);
+        if (Array.isArray(data) && data.length > 0) {
+          const cachedCustom = (await idbGet<FoodCatalogItem[]>("custom_foods")) || [];
+          const customNames = new Set(cachedCustom.map((c) => c.name_es.toLowerCase()));
+          const filteredServer = data.filter(
+            (d: any) => !customNames.has((d.name_es || "").toLowerCase())
+          );
+          setFoods([...cachedCustom, ...filteredServer]);
+        }
       }
       if (mealsRes.ok) {
         const data = await mealsRes.json();
         if (Array.isArray(data)) {
-          // Fusionar preservando comidas locales recientes que aún se están sincronizando
+          // Fusionar preservando comidas de otras fechas y mutaciones pendientes de esta fecha
           setMeals((prev) => {
-            const serverIds = new Set(data.map((m: any) => m.id));
-            const serverKeys = new Set(data.map((m: any) => `${m.log_date}_${m.custom_food_name}_${m.kcal}`));
-            const unsynced = prev.filter(
-              (p) => !serverIds.has(p.id) && !serverKeys.has(`${p.log_date}_${p.custom_food_name}_${p.kcal}`) && p.client_mutation_id
+            const dateNormalized = (dateToSync || "").split("T")[0];
+            const otherDates = prev.filter(
+              (p) => !p.log_date || p.log_date.split("T")[0] !== dateNormalized
             );
-            const merged = [...data, ...unsynced];
+            const serverIds = new Set(data.map((m: any) => m.id));
+            const serverMutIds = new Set(
+              data.map((m: any) => m.client_mutation_id).filter(Boolean)
+            );
+            const serverKeys = new Set(
+              data.map((m: any) => `${m.meal_type}_${m.custom_food_name}_${m.kcal}`)
+            );
+            const thisDateUnsynced = prev.filter(
+              (p) =>
+                p.log_date &&
+                p.log_date.split("T")[0] === dateNormalized &&
+                !serverIds.has(p.id) &&
+                (!p.client_mutation_id || !serverMutIds.has(p.client_mutation_id)) &&
+                !serverKeys.has(`${p.meal_type}_${p.custom_food_name}_${p.kcal}`)
+            );
+            const merged = [...otherDates, ...data, ...thisDateUnsynced];
             idbSet("meals", merged);
             return merged;
           });
@@ -284,9 +313,6 @@ export default function FitProIAPwaApp() {
     (async () => {
       installAuthFetch();
       if (AUTH_ENABLED) {
-        setMeals([]);
-        setWorkouts([]);
-        setCheckins([]);
         try {
           const sb = getSupabase();
           const { data } = await sb.auth.getSession();
@@ -305,6 +331,15 @@ export default function FitProIAPwaApp() {
       if (cachedWorkouts && cachedWorkouts.length > 0) setWorkouts(cachedWorkouts);
       const cachedCheckins = await idbGet<BodyCheckinItem[]>("checkins");
       if (cachedCheckins && cachedCheckins.length > 0) setCheckins(cachedCheckins);
+      const cachedCustomFoods = await idbGet<FoodCatalogItem[]>("custom_foods");
+      if (cachedCustomFoods && cachedCustomFoods.length > 0) {
+        setFoods((prev) => {
+          const customNames = new Set(cachedCustomFoods.map((c) => c.name_es.toLowerCase()));
+          return [...cachedCustomFoods, ...prev.filter((p) => !customNames.has(p.name_es.toLowerCase()))];
+        });
+      }
+      const cachedRecipes = await idbGet<RecipeItem[]>("recipes");
+      if (cachedRecipes && cachedRecipes.length > 0) setRecipes(cachedRecipes);
       const cachedMetrics = await idbGet<any>(`metrics_${todayStr}`);
       if (cachedMetrics) {
         setWaterMl(cachedMetrics.water_ml ?? 0);
@@ -371,8 +406,16 @@ export default function FitProIAPwaApp() {
   }, [activeTab, syncAllData]);
 
   // Cálculos del Diario de Hoy
-  const mealsForDate = meals.filter((m) => m.log_date === selectedDate);
-  const workoutsForDate = workouts.filter((w) => w.session_date === selectedDate);
+  const mealsForDate = meals.filter((m) => {
+    const mDate = (m.log_date || "").split("T")[0];
+    const sDate = (selectedDate || "").split("T")[0];
+    return mDate === sDate;
+  });
+  const workoutsForDate = workouts.filter((w) => {
+    const wDate = (w.session_date || "").split("T")[0];
+    const sDate = (selectedDate || "").split("T")[0];
+    return wDate === sDate;
+  });
 
   const consumedKcal = mealsForDate.reduce((acc, m) => acc + m.kcal, 0);
   const consumedProtein = Number(
@@ -431,9 +474,11 @@ export default function FitProIAPwaApp() {
       id: mutationId,
       client_mutation_id: mutationId,
     };
-    const updated = [...meals, item];
-    setMeals(updated);
-    await idbSet("meals", updated);
+    setMeals((prev) => {
+      const next = [...prev, item];
+      idbSet("meals", next);
+      return next;
+    });
 
     try {
       const authH = await getAuthHeaders();
@@ -457,6 +502,7 @@ export default function FitProIAPwaApp() {
   };
 
   const handleLogMultipleMeals = async (newMealsList: Omit<MealLogItem, "id">[]) => {
+    if (!newMealsList || newMealsList.length === 0) return;
     const createdItems: MealLogItem[] = newMealsList.map((m, idx) => {
       const mutId = `mut-ai-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`;
       return {
@@ -465,9 +511,11 @@ export default function FitProIAPwaApp() {
         client_mutation_id: mutId,
       };
     });
-    const updated = [...meals, ...createdItems];
-    setMeals(updated);
-    await idbSet("meals", updated);
+    setMeals((prev) => {
+      const next = [...prev, ...createdItems];
+      idbSet("meals", next);
+      return next;
+    });
 
     // Enviar cada plato al servidor para que persista en PostgreSQL y entre dispositivos
     try {
@@ -500,9 +548,11 @@ export default function FitProIAPwaApp() {
   };
 
   const handleDeleteMeal = async (id: string) => {
-    const updated = meals.filter((m) => m.id !== id);
-    setMeals(updated);
-    await idbSet("meals", updated);
+    setMeals((prev) => {
+      const next = prev.filter((m) => m.id !== id && m.client_mutation_id !== id);
+      idbSet("meals", next);
+      return next;
+    });
     try {
       const authH = await getAuthHeaders();
       await fetch(`${API_BASE}/meals/${id}`, {
@@ -511,6 +561,105 @@ export default function FitProIAPwaApp() {
       });
     } catch {
       // Ignorar si era local
+    }
+  };
+
+  // Creación y persistencia de alimentos propios en catálogo (IndexedDB + PostgreSQL)
+  const handleCreateCustomFood = async (newFood: Omit<FoodCatalogItem, "id" | "source">) => {
+    const foodId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const fullFood: FoodCatalogItem = {
+      ...newFood,
+      id: foodId,
+      source: "USER_CUSTOM",
+    };
+    setFoods((prev) => [fullFood, ...prev]);
+
+    const cachedCustom = (await idbGet<FoodCatalogItem[]>("custom_foods")) || [];
+    const updatedCustom = [fullFood, ...cachedCustom.filter((f) => f.name_es.toLowerCase() !== fullFood.name_es.toLowerCase())];
+    await idbSet("custom_foods", updatedCustom);
+
+    try {
+      const authH = await getAuthHeaders();
+      const res = await fetch(`${API_BASE}/foods`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authH },
+        body: JSON.stringify({
+          name_es: fullFood.name_es,
+          category: fullFood.category || "Plato Colombiano / Personalizado",
+          region: fullFood.region || "CO",
+          serving_label: fullFood.serving_label || "1 porción (100g)",
+          serving_weight_g: fullFood.serving_weight_g || 100,
+          kcal_per_100g: fullFood.kcal_per_100g,
+          protein_g_per_100g: fullFood.protein_g_per_100g,
+          carbs_g_per_100g: fullFood.carbs_g_per_100g,
+          fat_g_per_100g: fullFood.fat_g_per_100g,
+          fiber_g_per_100g: fullFood.fiber_g_per_100g || 0,
+        }),
+      });
+      if (!res.ok) throw new Error("Offline queue");
+    } catch {
+      await enqueueOfflineMutation({
+        mutationId: `mut-food-${foodId}`,
+        endpoint: "/foods",
+        method: "POST",
+        payload: {
+          name_es: fullFood.name_es,
+          category: fullFood.category || "Plato Colombiano / Personalizado",
+          region: fullFood.region || "CO",
+          serving_label: fullFood.serving_label || "1 porción (100g)",
+          serving_weight_g: fullFood.serving_weight_g || 100,
+          kcal_per_100g: fullFood.kcal_per_100g,
+          protein_g_per_100g: fullFood.protein_g_per_100g,
+          carbs_g_per_100g: fullFood.carbs_g_per_100g,
+          fat_g_per_100g: fullFood.fat_g_per_100g,
+          fiber_g_per_100g: fullFood.fiber_g_per_100g || 0,
+        },
+        createdAt: new Date().toISOString(),
+      });
+      const q = await getOfflineOutbox();
+      setPendingOfflineCount(q.length);
+    }
+  };
+
+  // Creación y persistencia de recetas propias (IndexedDB + PostgreSQL)
+  const handleCreateRecipe = async (newRec: Omit<RecipeItem, "id">) => {
+    const recId = `rec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const fullRec: RecipeItem = {
+      ...newRec,
+      id: recId,
+    };
+    setRecipes((prev) => [fullRec, ...prev]);
+
+    const cachedRecs = (await idbGet<RecipeItem[]>("recipes")) || [];
+    const updatedRecs = [fullRec, ...cachedRecs.filter((r) => r.name !== fullRec.name)];
+    await idbSet("recipes", updatedRecs);
+
+    try {
+      const authH = await getAuthHeaders();
+      const res = await fetch(`${API_BASE}/recipes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authH },
+        body: JSON.stringify({
+          name: fullRec.name,
+          servings: fullRec.servings,
+          ingredients: fullRec.ingredients,
+        }),
+      });
+      if (!res.ok) throw new Error("Offline queue");
+    } catch {
+      await enqueueOfflineMutation({
+        mutationId: `mut-rec-${recId}`,
+        endpoint: "/recipes",
+        method: "POST",
+        payload: {
+          name: fullRec.name,
+          servings: fullRec.servings,
+          ingredients: fullRec.ingredients,
+        },
+        createdAt: new Date().toISOString(),
+      });
+      const q = await getOfflineOutbox();
+      setPendingOfflineCount(q.length);
     }
   };
 
@@ -1309,22 +1458,8 @@ export default function FitProIAPwaApp() {
             onLogMeal={handleLogMeal}
             onLogMultipleMeals={handleLogMultipleMeals}
             onDeleteMeal={handleDeleteMeal}
-            onCreateCustomFood={(newFood) => {
-              setFoods((prev) => [
-                {
-                  ...newFood,
-                  id: `custom-${Date.now()}`,
-                  source: "USER_CUSTOM",
-                },
-                ...prev,
-              ]);
-            }}
-            onCreateRecipe={(newRec) => {
-              setRecipes((prev) => [
-                { ...newRec, id: `rec-${Date.now()}` },
-                ...prev,
-              ]);
-            }}
+            onCreateCustomFood={handleCreateCustomFood}
+            onCreateRecipe={handleCreateRecipe}
           />
         )}
 

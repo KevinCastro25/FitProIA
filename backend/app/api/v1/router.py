@@ -408,7 +408,7 @@ def search_foods(
 @api_router.post("/foods", response_model=FoodItemResponse, tags=["Alimentos & Recetas"])
 def create_custom_food(
     payload: FoodItemCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     food = FoodItem(
@@ -430,7 +430,7 @@ def create_custom_food(
 
 @api_router.get("/recipes", response_model=list[RecipeResponse], tags=["Alimentos & Recetas"])
 def list_recipes(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     recipes = db.query(Recipe).filter(Recipe.user_id == current_user.id).all()
@@ -456,7 +456,7 @@ def list_recipes(
 @api_router.post("/recipes", response_model=RecipeResponse, tags=["Alimentos & Recetas"])
 def create_recipe(
     payload: RecipeCreateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     servings = max(1, payload.servings)
@@ -503,7 +503,7 @@ def create_recipe(
 @api_router.get("/meals", response_model=list[MealLogResponse], tags=["Registro de Comidas"])
 def get_meals_by_date(
     log_date: Optional[date] = Query(default=None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     target_date = log_date or date.today()
@@ -538,7 +538,7 @@ def get_meals_by_date(
 @api_router.post("/meals", response_model=MealLogResponse, tags=["Registro de Comidas"])
 def log_meal(
     payload: MealLogCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     # Idempotencia para cola offline de la PWA
@@ -581,7 +581,7 @@ def log_meal(
 @api_router.delete("/meals/{meal_id}", tags=["Registro de Comidas"])
 def delete_meal(
     meal_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     meal = (

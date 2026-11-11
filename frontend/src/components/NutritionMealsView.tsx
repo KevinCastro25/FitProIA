@@ -132,22 +132,31 @@ export function NutritionMealsView({
 
   const handleCreateCustomFoodSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customName.trim()) return;
-    onCreateCustomFood({
-      name_es: customName.trim(),
+    const name = customName.trim();
+    if (!name) return;
+    const newFoodItem = {
+      name_es: name,
       category: "Personalizado / Colombiano",
-      region: "CO",
-      serving_label: customServingLabel,
+      region: "CO" as const,
+      serving_label: customServingLabel || "1 porción (100g)",
       serving_weight_g: Number(customServingG) || 100,
       kcal_per_100g: Number(customKcal100) || 0,
       protein_g_per_100g: Number(customP100) || 0,
       carbs_g_per_100g: Number(customC100) || 0,
       fat_g_per_100g: Number(customF100) || 0,
       fiber_g_per_100g: Number(customFib100) || 0,
+    };
+    onCreateCustomFood(newFoodItem);
+    setSelectedFood({
+      ...newFoodItem,
+      id: `custom-created-${Date.now()}`,
+      source: "USER_CUSTOM",
     });
+    setGrams(Number(customServingG) || 100);
+    setSearchQuery(name);
     setCustomName("");
     setActiveSubTab("BUSCADOR");
-    showToast("Alimento guardado en tu catálogo colombiano");
+    showToast(`Alimento guardado en tu catálogo: "${name}"`);
   };
 
   const handleAddRecipeIngredient = () => {
