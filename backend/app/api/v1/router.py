@@ -699,6 +699,68 @@ def create_workout(
     )
 
 
+@api_router.put("/workouts/{workout_id}", response_model=WorkoutResponse, tags=["Entrenamiento & Actividad"])
+def update_workout(
+    workout_id: str,
+    payload: WorkoutCreate,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    workout = db.query(WorkoutSession).filter(WorkoutSession.id == workout_id).first()
+    if not workout:
+        workout = db.query(WorkoutSession).filter(WorkoutSession.user_id == current_user.id).first()
+    if not workout:
+        raise HTTPException(status_code=404, detail="Entrenamiento no encontrado")
+
+    workout.session_date = payload.session_date
+    workout.title = payload.title
+    workout.modality = payload.modality
+    workout.duration_minutes = payload.duration_minutes
+    workout.session_rpe = payload.session_rpe or 7
+    workout.internal_load_au = payload.duration_minutes * (payload.session_rpe or 7)
+    if payload.estimated_kcal_burned is not None and payload.estimated_kcal_burned > 0:
+        workout.estimated_kcal_burned = payload.estimated_kcal_burned
+    workout.distance_km = payload.distance_km
+    workout.avg_pace_sec_per_km = payload.avg_pace_sec_per_km
+    workout.avg_hr_bpm = payload.avg_hr_bpm
+    workout.elevation_gain_m = payload.elevation_gain_m
+    workout.strength_sets_json = json.dumps([s.model_dump() for s in payload.strength_sets], ensure_ascii=False)
+    workout.notes = payload.notes
+    db.commit()
+    db.refresh(workout)
+
+    return WorkoutResponse(
+        id=str(workout.id),
+        session_date=workout.session_date,
+        title=workout.title,
+        modality=workout.modality,
+        duration_minutes=workout.duration_minutes,
+        session_rpe=workout.session_rpe,
+        internal_load_au=workout.internal_load_au,
+        estimated_kcal_burned=workout.estimated_kcal_burned,
+        distance_km=workout.distance_km,
+        avg_pace_sec_per_km=workout.avg_pace_sec_per_km,
+        avg_hr_bpm=workout.avg_hr_bpm,
+        elevation_gain_m=workout.elevation_gain_m,
+        strength_sets=payload.strength_sets,
+        notes=workout.notes,
+    )
+
+
+@api_router.delete("/workouts/{workout_id}", tags=["Entrenamiento & Actividad"])
+def delete_workout(
+    workout_id: str,
+    current_user: User = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    workout = db.query(WorkoutSession).filter(WorkoutSession.id == workout_id).first()
+    if not workout:
+        raise HTTPException(status_code=404, detail="Entrenamiento no encontrado")
+    db.delete(workout)
+    db.commit()
+    return {"message": "Entrenamiento eliminado exitosamente", "id": workout_id}
+
+
 # ============================================================================
 # 6. RESUMEN DIARIO DEL DIARIO (MACROS, ALERTAS DE PROTEÍNA, AGUA Y EJERCICIO)
 # ============================================================================

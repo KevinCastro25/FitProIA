@@ -520,10 +520,10 @@ def seed_initial_data(db: Session) -> None:
     # Entrenamientos recientes (Fuerza + Running Tempo)
     w1 = WorkoutSession(
         user_id=user.id,
-        session_date=today,
-        title="Fuerza Tren Superior + Core Hyrox",
-        modality="STRENGTH",
-        duration_minutes=62,
+        session_date=today - timedelta(days=1),
+        title="Torso",
+        modality="GYM",
+        duration_minutes=60,
         session_rpe=8,
         internal_load_au=496,
         estimated_kcal_burned=415,

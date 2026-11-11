@@ -10,6 +10,7 @@ import {
   HeartPulse,
   FileText,
   CheckCircle2,
+  Trash2,
 } from "lucide-react";
 import {
   WorkoutModality,
@@ -32,6 +33,7 @@ interface WorkoutsTrackerViewProps {
     stepsBonus?: number
   ) => void;
   onSaveWorkout: (workout: Omit<WorkoutSessionItem, "id">) => void;
+  onDeleteWorkout?: (id: string) => void;
 }
 
 const MODALITY_OPTIONS: { id: WorkoutModality; label: string; defaultKcalPerMin: number }[] = [
@@ -56,6 +58,7 @@ export function WorkoutsTrackerView({
   hrvMs,
   onUpdateRecoveryMarkers,
   onSaveWorkout,
+  onDeleteWorkout,
 }: WorkoutsTrackerViewProps) {
   const [subView, setSubView] = useState<"live" | "deload_sync">("live");
   const [sessionDate, setSessionDate] = useState<string>(
@@ -373,10 +376,20 @@ export function WorkoutsTrackerView({
                         {w.notes ? ` • ${w.notes}` : ""}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <span className="text-base font-extrabold text-amber-400 flex items-center sm:justify-end gap-1">
+                    <div className="flex items-center sm:justify-end gap-2.5">
+                      <span className="text-base font-extrabold text-amber-400 flex items-center gap-1">
                         <Flame className="h-4 w-4" /> {w.estimated_kcal_burned} kcal
                       </span>
+                      {onDeleteWorkout && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteWorkout(w.id)}
+                          className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-900 rounded-lg transition"
+                          title="Eliminar entrenamiento"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

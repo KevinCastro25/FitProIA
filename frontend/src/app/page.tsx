@@ -698,6 +698,23 @@ export default function FitProIAPwaApp() {
     }
   };
 
+  const handleDeleteWorkout = async (id: string) => {
+    setWorkouts((prev) => {
+      const next = prev.filter((w) => w.id !== id && w.client_mutation_id !== id);
+      idbSet("workouts", next);
+      return next;
+    });
+    try {
+      const authH = await getAuthHeaders();
+      await fetch(`${API_BASE}/workouts/${id}`, {
+        method: "DELETE",
+        headers: { ...authH },
+      });
+    } catch {
+      // Ignorar si era local
+    }
+  };
+
   const handleAddCheckin = async (
     input: Omit<
       BodyCheckinItem,
@@ -1492,6 +1509,7 @@ export default function FitProIAPwaApp() {
               handleUpdateDailyMetrics(patch);
             }}
             onSaveWorkout={handleSaveWorkout}
+            onDeleteWorkout={handleDeleteWorkout}
           />
         )}
 
