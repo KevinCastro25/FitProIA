@@ -773,6 +773,42 @@ def get_daily_summary(
     }
 
 
+@api_router.get("/daily-metrics", tags=["Diario & Progreso"])
+def get_daily_metrics(
+    metric_date: Optional[date] = Query(default=None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    day = metric_date or date.today()
+    metric = (
+        db.query(DailyMetric)
+        .filter(
+            DailyMetric.user_id == current_user.id,
+            DailyMetric.metric_date == day,
+        )
+        .first()
+    )
+    if not metric:
+        return {
+            "metric_date": day.isoformat(),
+            "water_ml": 0,
+            "steps_count": 0,
+            "sleep_hours": 7.5,
+            "resting_hr_bpm": 54,
+            "hrv_ms": 68.0,
+            "day_type": "TRAINING",
+        }
+    return {
+        "metric_date": metric.metric_date.isoformat(),
+        "water_ml": metric.water_ml or 0,
+        "steps_count": metric.steps_count or 0,
+        "sleep_hours": metric.sleep_hours or 7.5,
+        "resting_hr_bpm": getattr(metric, "resting_hr_bpm", 54) or 54,
+        "hrv_ms": getattr(metric, "hrv_ms", 68.0) or 68.0,
+        "day_type": metric.day_type or "TRAINING",
+    }
+
+
 @api_router.put("/daily-metrics", tags=["Diario & Progreso"])
 def update_daily_metrics(
     payload: DailyMetricsUpdate,

@@ -115,6 +115,26 @@ export default function FitProIAPwaApp() {
       for (const old of profItems.slice(0, -1)) await clearOfflineMutation(old.mutationId);
       queue = await getOfflineOutbox();
     }
+    // Colapsar métricas diarias pendientes: conservar solo la más reciente por fecha
+    const metricDates = new Set(
+      queue
+        .filter((i) => i.endpoint === "/daily-metrics")
+        .map((i) => (i.payload as { metric_date?: string })?.metric_date)
+        .filter(Boolean)
+    );
+    for (const d of metricDates) {
+      const dItems = queue
+        .filter(
+          (i) =>
+            i.endpoint === "/daily-metrics" &&
+            (i.payload as { metric_date?: string })?.metric_date === d
+        )
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      if (dItems.length > 1) {
+        for (const old of dItems.slice(0, -1)) await clearOfflineMutation(old.mutationId);
+        queue = await getOfflineOutbox();
+      }
+    }
     setPendingOfflineCount(queue.length);
     if (queue.length === 0) return;
 
@@ -158,12 +178,13 @@ export default function FitProIAPwaApp() {
       const authH = await getAuthHeaders();
       const reqHeaders = { "Content-Type": "application/json", ...authH };
 
-      const [profRes, foodsRes, mealsRes, workRes, chkRes] = await Promise.all([
+      const [profRes, foodsRes, mealsRes, workRes, chkRes, metricsRes] = await Promise.all([
         fetch(`${API_BASE}/profile`, { headers: reqHeaders }),
         fetch(`${API_BASE}/foods`, { headers: reqHeaders }),
         fetch(`${API_BASE}/meals?log_date=${dateToSync}`, { headers: reqHeaders }),
         fetch(`${API_BASE}/workouts`, { headers: reqHeaders }),
         fetch(`${API_BASE}/checkins`, { headers: reqHeaders }),
+        fetch(`${API_BASE}/daily-metrics?metric_date=${dateToSync}`, { headers: reqHeaders }),
       ]);
 
       if (profRes.ok) {
@@ -205,6 +226,17 @@ export default function FitProIAPwaApp() {
         if (Array.isArray(data)) {
           setCheckins(data);
           await idbSet("checkins", data);
+        }
+      }
+      if (metricsRes.ok) {
+        const mData = await metricsRes.json();
+        if (mData) {
+          setWaterMl(mData.water_ml ?? 0);
+          setStepsCount(mData.steps_count ?? 0);
+          if (mData.sleep_hours != null) setSleepHours(mData.sleep_hours);
+          if (mData.resting_hr_bpm != null) setRestingHrBpm(mData.resting_hr_bpm);
+          if (mData.hrv_ms != null) setHrvMs(mData.hrv_ms);
+          await idbSet(`metrics_${dateToSync}`, mData);
         }
       }
     } catch {
@@ -260,6 +292,14 @@ export default function FitProIAPwaApp() {
       if (cachedWorkouts && cachedWorkouts.length > 0) setWorkouts(cachedWorkouts);
       const cachedCheckins = await idbGet<BodyCheckinItem[]>("checkins");
       if (cachedCheckins && cachedCheckins.length > 0) setCheckins(cachedCheckins);
+      const cachedMetrics = await idbGet<any>(`metrics_${todayStr}`);
+      if (cachedMetrics) {
+        setWaterMl(cachedMetrics.water_ml ?? 0);
+        setStepsCount(cachedMetrics.steps_count ?? 0);
+        if (cachedMetrics.sleep_hours != null) setSleepHours(cachedMetrics.sleep_hours);
+        if (cachedMetrics.resting_hr_bpm != null) setRestingHrBpm(cachedMetrics.resting_hr_bpm);
+        if (cachedMetrics.hrv_ms != null) setHrvMs(cachedMetrics.hrv_ms);
+      }
 
       // Descargar datos frescos de la nube
       await syncAllData();
@@ -544,6 +584,58 @@ export default function FitProIAPwaApp() {
       const q = await getOfflineOutbox();
       setPendingOfflineCount(q.length);
       throw err;
+    }
+  };
+
+  const handleUpdateDailyMetrics = async (patch: {
+    water_ml?: number;
+    steps_count?: number;
+    sleep_hours?: number;
+    resting_hr_bpm?: number;
+    hrv_ms?: number;
+  }) => {
+    const nextWater = patch.water_ml !== undefined ? patch.water_ml : waterMl;
+    const nextSteps = patch.steps_count !== undefined ? patch.steps_count : stepsCount;
+    const nextSleep = patch.sleep_hours !== undefined ? patch.sleep_hours : sleepHours;
+    const nextRhr = patch.resting_hr_bpm !== undefined ? patch.resting_hr_bpm : restingHrBpm;
+    const nextHrv = patch.hrv_ms !== undefined ? patch.hrv_ms : hrvMs;
+
+    if (patch.water_ml !== undefined) setWaterMl(nextWater);
+    if (patch.steps_count !== undefined) setStepsCount(nextSteps);
+    if (patch.sleep_hours !== undefined) setSleepHours(nextSleep);
+    if (patch.resting_hr_bpm !== undefined) setRestingHrBpm(nextRhr);
+    if (patch.hrv_ms !== undefined) setHrvMs(nextHrv);
+
+    const payload = {
+      metric_date: selectedDate,
+      water_ml: nextWater,
+      steps_count: nextSteps,
+      sleep_hours: nextSleep,
+      resting_hr_bpm: nextRhr,
+      hrv_ms: nextHrv,
+    };
+
+    await idbSet(`metrics_${selectedDate}`, payload);
+
+    try {
+      const authH = await getAuthHeaders();
+      const res = await fetch(`${API_BASE}/daily-metrics`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authH },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) throw new Error("Offline queue");
+    } catch {
+      await enqueueOfflineMutation({
+        mutationId: `mut-metrics-${selectedDate}`,
+        endpoint: "/daily-metrics",
+        method: "PUT",
+        payload,
+        createdAt: new Date().toISOString(),
+      });
+      const q = await getOfflineOutbox();
+      setPendingOfflineCount(q.length);
     }
   };
 
@@ -927,14 +1019,14 @@ export default function FitProIAPwaApp() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setWaterMl((w) => w + 250)}
+                    onClick={() => handleUpdateDailyMetrics({ water_ml: waterMl + 250 })}
                     className="flex-1 rounded-xl bg-sky-500/15 border border-sky-500/30 py-2 text-xs font-bold text-sky-300 hover:bg-sky-500/25"
                   >
                     +250 ml (Vaso)
                   </button>
                   <button
                     type="button"
-                    onClick={() => setWaterMl((w) => w + 500)}
+                    onClick={() => handleUpdateDailyMetrics({ water_ml: waterMl + 500 })}
                     className="flex-1 rounded-xl bg-sky-500/15 border border-sky-500/30 py-2 text-xs font-bold text-sky-300 hover:bg-sky-500/25"
                   >
                     +500 ml (Caramañola)
@@ -968,14 +1060,14 @@ export default function FitProIAPwaApp() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setStepsCount((s) => s + 1000)}
+                    onClick={() => handleUpdateDailyMetrics({ steps_count: stepsCount + 1000 })}
                     className="flex-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25"
                   >
                     +1,000 pasos
                   </button>
                   <button
                     type="button"
-                    onClick={() => setStepsCount((s) => s + 2500)}
+                    onClick={() => handleUpdateDailyMetrics({ steps_count: stepsCount + 2500 })}
                     className="flex-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25"
                   >
                     +2,500 pasos
@@ -1147,12 +1239,20 @@ export default function FitProIAPwaApp() {
             restingHrBpm={restingHrBpm}
             hrvMs={hrvMs}
             onUpdateRecoveryMarkers={(sleep, rhr, hrv, stepsBonus) => {
-              setSleepHours(sleep);
-              setRestingHrBpm(rhr);
-              setHrvMs(hrv);
+              const patch: {
+                sleep_hours: number;
+                resting_hr_bpm: number;
+                hrv_ms: number;
+                steps_count?: number;
+              } = {
+                sleep_hours: sleep,
+                resting_hr_bpm: rhr,
+                hrv_ms: hrv,
+              };
               if (stepsBonus && stepsBonus > 0) {
-                setStepsCount(stepsBonus);
+                patch.steps_count = stepsBonus;
               }
+              handleUpdateDailyMetrics(patch);
             }}
             onSaveWorkout={handleSaveWorkout}
           />
