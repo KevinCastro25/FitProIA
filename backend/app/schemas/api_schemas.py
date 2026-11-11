@@ -374,7 +374,7 @@ class CompetitionEventCreateRequest(BaseModel):
     name: str
     event_type: str = Field(
         default="HALF_MARATHON",
-        description="HALF_MARATHON | MARATHON | ULTRA | HYROX | TEN_K | TRIATHLON",
+        description="FIVE_K | SEVEN_K | TEN_K | TWELVE_K | FIFTEEN_K | HALF_MARATHON | MARATHON | ULTRA | HYROX | TRIATHLON",
     )
     event_date: date
     distance_km: float = Field(default=21.1, gt=0)
