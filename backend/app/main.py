@@ -35,6 +35,9 @@ def _ensure_phase3_columns():
         "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS primary_sport_focus VARCHAR(60) DEFAULT 'HYBRID_GYM_RUNNING'",
         "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()",
         # nutrition_targets (todas las columnas de cálculo metabólico)
+        "ALTER TABLE nutrition_targets ALTER COLUMN protein_grams DROP NOT NULL",
+        "ALTER TABLE nutrition_targets ALTER COLUMN fat_grams DROP NOT NULL",
+        "ALTER TABLE nutrition_targets ALTER COLUMN carbs_grams DROP NOT NULL",
         "ALTER TABLE nutrition_targets ADD COLUMN IF NOT EXISTS formula_used VARCHAR(40) DEFAULT 'KATCH_MCARDLE'",
         "ALTER TABLE nutrition_targets ADD COLUMN IF NOT EXISTS lean_body_mass_kg FLOAT DEFAULT 60.0",
         "ALTER TABLE nutrition_targets ADD COLUMN IF NOT EXISTS fat_mass_kg FLOAT DEFAULT 15.0",
@@ -107,6 +110,35 @@ def _ensure_phase3_columns():
             except Exception as e:
                 # Si una sentencia no aplica (ej. SQLite no soporta ALTER COLUMN), continuar
                 pass
+
+        if engine.dialect.name == "postgresql":
+            pg_cleanup = """
+            DO $$
+            DECLARE
+                t text;
+                c text;
+            BEGIN
+                FOR t, c IN
+                    SELECT table_name, column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name IN ('nutrition_targets', 'user_profiles', 'daily_metrics', 'workout_sessions', 'body_checkins', 'meal_logs', 'food_items')
+                      AND column_name NOT IN ('id', 'user_id', 'metric_date', 'session_date', 'checkin_date', 'log_date', 'name_es', 'category', 'kcal_per_100g', 'protein_g_per_100g', 'carbs_g_per_100g', 'fat_g_per_100g', 'title', 'modality', 'duration_minutes', 'internal_load_au', 'estimated_kcal_burned', 'weight_kg', 'trend_weight_kg', 'body_fat_pct', 'bf_method', 'lean_mass_kg', 'fat_mass_kg', 'waist_cm', 'assessment_status', 'assessment_summary', 'recommended_action', 'meal_type', 'custom_food_name', 'quantity_g', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'sex', 'age', 'height_cm', 'current_weight_kg', 'target_body_fat_pct', 'formula_used', 'bmr_kcal', 'target_daily_kcal')
+                      AND is_nullable = 'NO'
+                LOOP
+                    BEGIN
+                        EXECUTE format('ALTER TABLE %I ALTER COLUMN %I DROP NOT NULL', t, c);
+                    EXCEPTION WHEN OTHERS THEN
+                        NULL;
+                    END;
+                END LOOP;
+            END $$;
+            """
+            try:
+                conn.execute(text(pg_cleanup))
+                conn.commit()
+            except Exception as err:
+                print(f"[FitProIA DB Cleanup Warning] {err}", flush=True)
 
 
 @asynccontextmanager
