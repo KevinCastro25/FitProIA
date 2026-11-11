@@ -185,7 +185,7 @@ export function ProfileCalculatorView({
     setSaveStatus("saving");
     const safetyTimer = setTimeout(() => {
       setSaveStatus((prev) => (prev === "saving" ? "offline" : prev));
-    }, 8500);
+    }, 50000);
     lastSyncedJsonRef.current = normalizedJson;
     try {
       await onSaveProfile(normalizedProfile);

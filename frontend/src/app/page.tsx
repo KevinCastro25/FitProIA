@@ -125,7 +125,7 @@ export default function FitProIAPwaApp() {
           method: item.method,
           headers: { "Content-Type": "application/json", ...authH },
           body: JSON.stringify(item.payload),
-          signal: AbortSignal.timeout(6000),
+          signal: AbortSignal.timeout(30000),
         });
         // Éxito o error de cliente permanente (400/404/409/422): sacar de la cola.
         // Errores 5xx / 401 se reintentan luego.
@@ -522,7 +522,7 @@ export default function FitProIAPwaApp() {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authH },
         body: JSON.stringify(newProf),
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(45000),
       });
       if (!res.ok) {
         const errText = await res.text().catch(() => "");

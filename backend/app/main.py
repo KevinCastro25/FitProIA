@@ -171,13 +171,17 @@ app = FastAPI(
 
 _cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()] or ["*"]
 
+# La autenticación va por header Authorization: Bearer (no por cookies), por lo que es seguro
+# aceptar cualquier origen. Esto evita que una variable CORS_ORIGINS mal escrita en Render
+# (dominio de Vercel, previews, localhost del PC, PWA en iPhone) bloquee el guardado desde el navegador.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
-    # Con "*" no se permiten credenciales (la auth va por header Bearer, no por cookies).
-    allow_credentials=_cors_origins != ["*"],
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,
 )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
