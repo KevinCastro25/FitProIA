@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Plus,
   Trophy,
+  Ruler,
 } from "lucide-react";
 import {
   INITIAL_COLOMBIAN_FOODS,
@@ -1259,12 +1260,14 @@ export default function FitProIAPwaApp() {
         )}
 
         {/* ================================================================
-            PESTAÑA 4: CHEQUEOS Y VALORACIÓN DE COMPOSICIÓN CORPORAL
+            PESTAÑA 4: REGISTRO DE MEDIDAS Y COMPOSICIÓN CORPORAL
            ================================================================ */}
         {activeTab === "progreso" && (
           <BodyCheckinsView
             checkins={checkins}
             targetBodyFatPct={profile.target_body_fat_pct}
+            userHeightCm={profile.height_cm}
+            userSex={profile.sex}
             onAddCheckin={handleAddCheckin}
           />
         )}
@@ -1335,7 +1338,7 @@ export default function FitProIAPwaApp() {
             { id: "diario", label: "Diario", icon: Flame },
             { id: "comidas", label: "Comidas", icon: Utensils },
             { id: "entreno", label: "Entreno", icon: Dumbbell },
-            { id: "progreso", label: "% Grasa", icon: TrendingDown },
+            { id: "progreso", label: "Medidas", icon: Ruler },
             { id: "coach", label: "Coach", icon: Trophy },
             { id: "perfil", label: "Perfil", icon: UserCheck },
           ].map((item) => {
