@@ -20,9 +20,12 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    # Gemini AI - Modelos en orden de prioridad: 3.8 -> 3.7 -> 3.6 -> 3.5 -> 3.0 -> 2.5 -> 2.0 -> 1.5
     GEMINI_VISION_MODEL: str = "gemini-2.5-flash"
-    # Lista de modelos de Gemini en orden de prioridad con fallback automático
-    GEMINI_FALLBACK_MODELS: str = "gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash"
+    GEMINI_FALLBACK_MODELS: str = (
+        "gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3.0-flash,"
+        "gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash,gemini-1.5-pro"
+    )
 
     # Autenticación real (Supabase Auth: email / Google / Apple).
     # En producción (Render) poner REQUIRE_AUTH=true: se desactiva el usuario demo por defecto.

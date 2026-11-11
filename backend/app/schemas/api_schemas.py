@@ -314,6 +314,7 @@ class AiPlateAnalysisResponse(BaseModel):
     total_fat_g: float
     total_fiber_g: float
     disclaimer: str
+    error_message: Optional[str] = None
 
 
 class AiPredictionConfirmRequest(BaseModel):

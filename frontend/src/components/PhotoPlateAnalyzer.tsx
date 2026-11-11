@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import {
   Camera,
   Sparkles,
-  AlertTriangle,
+  AlertCircle,
   CheckCircle2,
   Trash2,
   Plus,
@@ -39,15 +39,15 @@ interface PhotoPlateAnalyzerProps {
 const QUICK_DISH_PRESETS = [
   {
     id: "almuerzo_ejecutivo_pollo",
-    label: "Almuerzo Ejecutivo CO (Pechuga + Arroz + Fríjoles + Aguacate)",
+    label: "Almuerzo: Pollo a la plancha con Arroz y Aguacate",
   },
   {
     id: "bandeja_paisa",
-    label: "Bandeja Paisa Antioqueña",
+    label: "Bandeja Paisa",
   },
   {
     id: "desayuno_arepa_pericos",
-    label: "Desayuno: Huevos Pericos + Arepa Blanca + Quesito",
+    label: "Desayuno: Huevos Pericos + Arepa + Quesito",
   },
   {
     id: "ajiaco_santafereno",
@@ -72,9 +72,7 @@ export function PhotoPlateAnalyzer({
   const [referenceObject, setReferenceObject] = useState<
     "PLATE_26CM" | "HAND" | "CUTLERY" | "NONE"
   >("PLATE_26CM");
-  const [userHint, setUserHint] = useState<string>(
-    "almuerzo ejecutivo pollo con arroz, frijoles y aguacate"
-  );
+  const [userHint, setUserHint] = useState<string>("");
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] =
     useState<AiPlateAnalysisResult | null>(null);
@@ -84,13 +82,7 @@ export function PhotoPlateAnalyzer({
   );
   const [newIngGrams, setNewIngGrams] = useState<number>(80);
 
-  // Estado del bucle Human-in-the-Loop y Cola Offline de Fotos
-  const [hitlFeedback, setHitlFeedback] = useState<{
-    mape: number;
-    flagged: boolean;
-    totalKcal: number;
-    totalProtein: number;
-  } | null>(null);
+  const [savedSuccessMsg, setSavedSuccessMsg] = useState<string | null>(null);
   const [offlinePhotoQueue, setOfflinePhotoQueue] = useState<
     QueuedOfflinePhoto[]
   >([]);
@@ -110,6 +102,10 @@ export function PhotoPlateAnalyzer({
         height: compressed.height,
         sizeKb: compressed.compressedSizeKb,
       });
+      // Limpiar resultado anterior para esperar nuevo análisis
+      setAnalysisResult(null);
+      setEditableItems([]);
+      setSavedSuccessMsg(null);
     } catch {
       // Fallback directo si falla canvas
     }
@@ -120,94 +116,90 @@ export function PhotoPlateAnalyzer({
     refObj: "PLATE_26CM" | "HAND" | "CUTLERY" | "NONE"
   ): AiPlateAnalysisResult => {
     const h = hint.toLowerCase();
-    let dishName =
-      "Plato Colombiano: Pechuga a la plancha, Arroz, Fríjoles Rojos y Aguacate Hass";
-    let baseItems: AiDetectedIngredient[] = [
-      {
-        name_es: "Pechuga de pollo a la plancha (peso cocido)",
-        estimated_grams: 185,
-        confidence: 0.91,
-        kcal: 305,
-        protein_g: 57.4,
-        carbs_g: 0,
-        fat_g: 6.7,
-        fiber_g: 0,
-        kcal_per_100g: 165,
-        protein_g_per_100g: 31,
-        carbs_g_per_100g: 0,
-        fat_g_per_100g: 3.6,
-        fiber_g_per_100g: 0,
-      },
-      {
-        name_es: "Arroz blanco cocido colombiano",
-        estimated_grams: 145,
-        confidence: 0.89,
-        kcal: 189,
-        protein_g: 3.9,
-        carbs_g: 40.9,
-        fat_g: 0.4,
-        fiber_g: 0.6,
-        kcal_per_100g: 130,
-        protein_g_per_100g: 2.7,
-        carbs_g_per_100g: 28.2,
-        fat_g_per_100g: 0.3,
-        fiber_g_per_100g: 0.4,
-      },
-      {
-        name_es: "Fríjoles rojos colombianos cocidos (sin tocino)",
-        estimated_grams: 140,
-        confidence: 0.86,
-        kcal: 178,
-        protein_g: 12.2,
-        carbs_g: 31.9,
-        fat_g: 0.7,
-        fiber_g: 9.0,
-        kcal_per_100g: 127,
-        protein_g_per_100g: 8.7,
-        carbs_g_per_100g: 22.8,
-        fat_g_per_100g: 0.5,
-        fiber_g_per_100g: 6.4,
-      },
-      {
-        name_es: "Aguacate Hass colombiano",
-        estimated_grams: 75,
-        confidence: 0.87,
-        kcal: 120,
-        protein_g: 1.5,
-        carbs_g: 6.4,
-        fat_g: 11.0,
-        fiber_g: 5.0,
-        kcal_per_100g: 160,
-        protein_g_per_100g: 2.0,
-        carbs_g_per_100g: 8.5,
-        fat_g_per_100g: 14.7,
-        fiber_g_per_100g: 6.7,
-      },
-    ];
 
     if (h.includes("bandeja") || h.includes("paisa")) {
-      dishName =
-        "Bandeja Paisa Antioqueña (Solomito, Fríjol, Arroz, Arepa y Aguacate)";
-      baseItems[0] = {
-        name_es: "Lomo de res / Solomito magro asado",
-        estimated_grams: 160,
-        confidence: 0.85,
-        kcal: 307,
-        protein_g: 45.6,
-        carbs_g: 0,
-        fat_g: 13.1,
-        fiber_g: 0,
-        kcal_per_100g: 192,
-        protein_g_per_100g: 28.5,
-        carbs_g_per_100g: 0,
-        fat_g_per_100g: 8.2,
-        fiber_g_per_100g: 0,
+      const items: AiDetectedIngredient[] = [
+        {
+          name_es: "Lomo de res magro asado",
+          estimated_grams: 160,
+          confidence: 0.85,
+          kcal: 307,
+          protein_g: 45.6,
+          carbs_g: 0,
+          fat_g: 13.1,
+          fiber_g: 0,
+          kcal_per_100g: 192,
+          protein_g_per_100g: 28.5,
+          carbs_g_per_100g: 0,
+          fat_g_per_100g: 8.2,
+          fiber_g_per_100g: 0,
+        },
+        {
+          name_es: "Fríjoles rojos colombianos cocidos",
+          estimated_grams: 160,
+          confidence: 0.86,
+          kcal: 203,
+          protein_g: 13.9,
+          carbs_g: 36.5,
+          fat_g: 0.8,
+          fiber_g: 10.2,
+          kcal_per_100g: 127,
+          protein_g_per_100g: 8.7,
+          carbs_g_per_100g: 22.8,
+          fat_g_per_100g: 0.5,
+          fiber_g_per_100g: 6.4,
+        },
+        {
+          name_es: "Arroz blanco cocido",
+          estimated_grams: 140,
+          confidence: 0.9,
+          kcal: 182,
+          protein_g: 3.8,
+          carbs_g: 39.5,
+          fat_g: 0.4,
+          fiber_g: 0.6,
+          kcal_per_100g: 130,
+          protein_g_per_100g: 2.7,
+          carbs_g_per_100g: 28.2,
+          fat_g_per_100g: 0.3,
+          fiber_g_per_100g: 0.4,
+        },
+        {
+          name_es: "Aguacate Hass",
+          estimated_grams: 70,
+          confidence: 0.88,
+          kcal: 112,
+          protein_g: 1.4,
+          carbs_g: 6.0,
+          fat_g: 10.3,
+          fiber_g: 4.7,
+          kcal_per_100g: 160,
+          protein_g_per_100g: 2.0,
+          carbs_g_per_100g: 8.5,
+          fat_g_per_100g: 14.7,
+          fiber_g_per_100g: 6.7,
+        },
+      ];
+      return {
+        prediction_id: `pred-local-${Date.now()}`,
+        model_version: "preset-bandeja-paisa",
+        dish_name: "Bandeja Paisa Antioqueña",
+        reference_object: refObj,
+        overall_confidence: 0.88,
+        is_colombian_dish: true,
+        flagged_for_review: false,
+        items,
+        total_kcal: items.reduce((a, b) => a + b.kcal, 0),
+        total_protein_g: Number(items.reduce((a, b) => a + b.protein_g, 0).toFixed(1)),
+        total_carbs_g: Number(items.reduce((a, b) => a + b.carbs_g, 0).toFixed(1)),
+        total_fat_g: Number(items.reduce((a, b) => a + b.fat_g, 0).toFixed(1)),
+        total_fiber_g: Number(items.reduce((a, b) => a + b.fiber_g, 0).toFixed(1)),
+        disclaimer: "Estimación basada en plato típico.",
       };
     } else if (h.includes("desayuno") || h.includes("arepa") || h.includes("perico")) {
-      dishName = "Desayuno Colombiano: Huevos Pericos, Arepa Blanca y Quesito";
-      baseItems = [
+      const items: AiDetectedIngredient[] = [
         {
-          name_es: "Huevos pericos colombianos (con tomate y cebolla)",
+          name_es: "Huevos pericos con tomate y cebolla",
           estimated_grams: 180,
           confidence: 0.92,
           kcal: 266,
@@ -222,7 +214,7 @@ export function PhotoPlateAnalyzer({
           fiber_g_per_100g: 0.5,
         },
         {
-          name_es: "Arepa de maíz blanco asada (sin mantequilla)",
+          name_es: "Arepa de maíz blanco asada",
           estimated_grams: 90,
           confidence: 0.94,
           kcal: 176,
@@ -237,13 +229,13 @@ export function PhotoPlateAnalyzer({
           fiber_g_per_100g: 2.8,
         },
         {
-          name_es: "Quesito antioqueño / Queso campesino",
-          estimated_grams: 65,
-          confidence: 0.87,
-          kcal: 150,
-          protein_g: 11.4,
-          carbs_g: 1.6,
-          fat_g: 10.9,
+          name_es: "Quesito campesino",
+          estimated_grams: 60,
+          confidence: 0.88,
+          kcal: 138,
+          protein_g: 10.5,
+          carbs_g: 1.4,
+          fat_g: 10.1,
           fiber_g: 0,
           kcal_per_100g: 230,
           protein_g_per_100g: 17.5,
@@ -252,13 +244,28 @@ export function PhotoPlateAnalyzer({
           fiber_g_per_100g: 0,
         },
       ];
+      return {
+        prediction_id: `pred-local-${Date.now()}`,
+        model_version: "preset-desayuno",
+        dish_name: "Desayuno: Huevos Pericos, Arepa y Quesito",
+        reference_object: refObj,
+        overall_confidence: 0.9,
+        is_colombian_dish: true,
+        flagged_for_review: false,
+        items,
+        total_kcal: items.reduce((a, b) => a + b.kcal, 0),
+        total_protein_g: Number(items.reduce((a, b) => a + b.protein_g, 0).toFixed(1)),
+        total_carbs_g: Number(items.reduce((a, b) => a + b.carbs_g, 0).toFixed(1)),
+        total_fat_g: Number(items.reduce((a, b) => a + b.fat_g, 0).toFixed(1)),
+        total_fiber_g: Number(items.reduce((a, b) => a + b.fiber_g, 0).toFixed(1)),
+        disclaimer: "Estimación basada en plato típico.",
+      };
     } else if (h.includes("ajiaco")) {
-      dishName = "Ajiaco Santafereño con Pollo Desmechado";
-      baseItems = [
+      const items: AiDetectedIngredient[] = [
         {
-          name_es: "Ajiaco Santafereño con pollo desmechado y aguacate",
+          name_es: "Ajiaco Santafereño con pollo y papa",
           estimated_grams: 450,
-          confidence: 0.84,
+          confidence: 0.85,
           kcal: 549,
           protein_g: 34.2,
           carbs_g: 62.1,
@@ -271,42 +278,54 @@ export function PhotoPlateAnalyzer({
           fiber_g_per_100g: 2.1,
         },
       ];
+      return {
+        prediction_id: `pred-local-${Date.now()}`,
+        model_version: "preset-ajiaco",
+        dish_name: "Ajiaco Santafereño con Pollo Desmechado",
+        reference_object: refObj,
+        overall_confidence: 0.85,
+        is_colombian_dish: true,
+        flagged_for_review: false,
+        items,
+        total_kcal: items.reduce((a, b) => a + b.kcal, 0),
+        total_protein_g: Number(items.reduce((a, b) => a + b.protein_g, 0).toFixed(1)),
+        total_carbs_g: Number(items.reduce((a, b) => a + b.carbs_g, 0).toFixed(1)),
+        total_fat_g: Number(items.reduce((a, b) => a + b.fat_g, 0).toFixed(1)),
+        total_fiber_g: Number(items.reduce((a, b) => a + b.fiber_g, 0).toFixed(1)),
+        disclaimer: "Estimación basada en plato típico.",
+      };
     }
 
-    const conf = refObj === "NONE" ? 0.76 : 0.88;
+    // Si no hubo coincidencia y tampoco foto
     return {
       prediction_id: `pred-local-${Date.now()}`,
-      model_version: "gemini-2.5-flash-colombia-hybrid",
-      dish_name: dishName,
+      model_version: "offline",
+      dish_name: "Plato no identificado",
       reference_object: refObj,
-      overall_confidence: conf,
-      is_colombian_dish: true,
-      flagged_for_review: true,
-      items: baseItems,
-      total_kcal: baseItems.reduce((a, b) => a + b.kcal, 0),
-      total_protein_g: Number(
-        baseItems.reduce((a, b) => a + b.protein_g, 0).toFixed(1)
-      ),
-      total_carbs_g: Number(
-        baseItems.reduce((a, b) => a + b.carbs_g, 0).toFixed(1)
-      ),
-      total_fat_g: Number(
-        baseItems.reduce((a, b) => a + b.fat_g, 0).toFixed(1)
-      ),
-      total_fiber_g: Number(
-        baseItems.reduce((a, b) => a + b.fiber_g, 0).toFixed(1)
-      ),
-      disclaimer:
-        "Estimación visual aproximada por IA: los navegadores web no tienen acceso al sensor de profundidad LiDAR. Verifica o ajusta los gramos antes de confirmar.",
+      overall_confidence: 0.0,
+      is_colombian_dish: false,
+      flagged_for_review: false,
+      items: [],
+      total_kcal: 0,
+      total_protein_g: 0,
+      total_carbs_g: 0,
+      total_fat_g: 0,
+      total_fiber_g: 0,
+      disclaimer: "Para analizar con precisión, toma una foto clara de tu plato.",
+      error_message: "No se identificó el alimento. Toma una foto clara o elige uno de los platos predefinidos.",
     };
   };
 
   const handleAnalyzePlate = async () => {
+    if (!imagePreview && !userHint.trim()) {
+      alert("Por favor toma una foto de tu comida o escribe el nombre del plato.");
+      return;
+    }
+
     setAnalyzing(true);
-    setHitlFeedback(null);
+    setSavedSuccessMsg(null);
 
     if (!isOnline && imagePreview) {
-      // Guardar en cola offline de fotos si no hay internet
       const queued: QueuedOfflinePhoto = {
         id: `offline-photo-${Date.now()}`,
         image_base64: imagePreview,
@@ -327,53 +346,51 @@ export function PhotoPlateAnalyzer({
         body: JSON.stringify({
           image_base64: imagePreview,
           reference_object: referenceObject,
-          user_hint: userHint,
+          user_hint: userHint.trim(),
         }),
       });
+
       if (res.ok) {
         const data: AiPlateAnalysisResult = await res.json();
         setAnalysisResult(data);
-        setEditableItems(data.items);
+        setEditableItems(data.items || []);
+        setAnalyzing(false);
+        return;
+      } else {
+        const errJson = await res.json().catch(() => null);
+        const errMsg = errJson?.error_message || errJson?.detail || "Error en el servidor al analizar la foto.";
+        setAnalysisResult({
+          prediction_id: `err-${Date.now()}`,
+          model_version: "error",
+          dish_name: "Error en el análisis",
+          reference_object: referenceObject,
+          overall_confidence: 0,
+          is_colombian_dish: false,
+          flagged_for_review: false,
+          items: [],
+          total_kcal: 0,
+          total_protein_g: 0,
+          total_carbs_g: 0,
+          total_fat_g: 0,
+          total_fiber_g: 0,
+          disclaimer: "",
+          error_message: errMsg,
+        });
+        setEditableItems([]);
         setAnalyzing(false);
         return;
       }
     } catch {
-      // Fallback local si el servidor no está corriendo
+      // Fallback local solo si hay un hint específico
+      const fallback = buildLocalFallbackAnalysis(userHint, referenceObject);
+      setAnalysisResult(fallback);
+      setEditableItems(fallback.items || []);
+      setAnalyzing(false);
     }
-
-    const fallback = buildLocalFallbackAnalysis(userHint, referenceObject);
-    setAnalysisResult(fallback);
-    setEditableItems(fallback.items);
-    setAnalyzing(false);
   };
 
   const handleConfirmAndSave = async () => {
     if (!analysisResult || editableItems.length === 0) return;
-
-    // Calcular MAPE (Error porcentual medio tras corrección del usuario)
-    const rawMap = new Map(
-      analysisResult.items.map((i) => [
-        i.name_es.toLowerCase(),
-        i.estimated_grams,
-      ])
-    );
-    const errors: number[] = [];
-    for (const item of editableItems) {
-      const orig = rawMap.get(item.name_es.toLowerCase());
-      if (orig !== undefined && item.estimated_grams > 0) {
-        errors.push(
-          (Math.abs(orig - item.estimated_grams) / item.estimated_grams) * 100
-        );
-      } else {
-        errors.push(25);
-      }
-    }
-    const mape =
-      errors.length > 0
-        ? Number(
-            (errors.reduce((a, b) => a + b, 0) / errors.length).toFixed(1)
-          )
-        : 0;
 
     try {
       await fetch(
@@ -385,12 +402,12 @@ export function PhotoPlateAnalyzer({
             log_date: selectedDate,
             meal_type: selectedCategory,
             corrected_items: editableItems,
-            client_mutation_id: `hitl-${Date.now()}`,
+            client_mutation_id: `photo-${Date.now()}`,
           }),
         }
       );
     } catch {
-      // Sincronizado vía onMealsConfirmed en IndexedDB
+      // Se sincroniza vía IndexedDB local
     }
 
     const mealsToLog: Omit<MealLogItem, "id">[] = editableItems.map((it) => ({
@@ -398,7 +415,7 @@ export function PhotoPlateAnalyzer({
       meal_type: selectedCategory,
       custom_food_name: `[IA Foto] ${it.name_es}`,
       quantity_g: it.estimated_grams,
-      portion_description: `Foto IA (${Math.round(it.estimated_grams)}g)`,
+      portion_description: `${Math.round(it.estimated_grams)}g`,
       kcal: it.kcal,
       protein_g: it.protein_g,
       carbs_g: it.carbs_g,
@@ -407,15 +424,7 @@ export function PhotoPlateAnalyzer({
     }));
 
     onMealsConfirmed(mealsToLog);
-
-    setHitlFeedback({
-      mape,
-      flagged: mape > 15 || analysisResult.overall_confidence < 0.8 || analysisResult.is_colombian_dish,
-      totalKcal: editableItems.reduce((a, b) => a + b.kcal, 0),
-      totalProtein: Number(
-        editableItems.reduce((a, b) => a + b.protein_g, 0).toFixed(1)
-      ),
-    });
+    setSavedSuccessMsg(`¡${mealsToLog.length} alimento(s) registrados con éxito en tu ${selectedCategory.toLowerCase()}!`);
   };
 
   const totalEditedKcal = editableItems.reduce((a, b) => a + b.kcal, 0);
@@ -431,29 +440,13 @@ export function PhotoPlateAnalyzer({
 
   return (
     <div className="space-y-4">
-      {/* Aviso Obligatorio de Estimación Visual sin Sensor LiDAR en Web */}
-      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 flex items-start gap-2.5 text-xs text-amber-200">
-        <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
-        <div>
-          <strong className="font-bold text-amber-300">
-            Nota sobre precisión por foto:
-          </strong>{" "}
-          Las estimaciones volumétricas por foto son aproximadas (las PWAs en iOS no
-          tienen acceso al sensor LiDAR de profundidad). Selecciona un{" "}
-          <strong>objeto de referencia</strong> y ajusta los gramos si lo consideras
-          necesario antes de confirmar.
-        </div>
-      </div>
-
-      {/* Cola de Fotos Offline Pendientes (si existen) */}
+      {/* Cola de Fotos Offline Pendientes */}
       {offlinePhotoQueue.length > 0 && (
         <div className="rounded-2xl border border-sky-500/40 bg-sky-950/30 p-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-xs text-sky-200">
             <CloudOff className="h-4 w-4 text-sky-400 shrink-0" />
             <span>
-              Tienes{" "}
-              <strong>{offlinePhotoQueue.length} foto(s) en cola local</strong>{" "}
-              guardadas sin señal.
+              Tienes <strong>{offlinePhotoQueue.length} foto(s) en cola local</strong> guardadas sin señal.
             </span>
           </div>
           <button
@@ -468,19 +461,20 @@ export function PhotoPlateAnalyzer({
                 handleAnalyzePlate();
               }
             }}
-            className="flex items-center gap-1 rounded-xl bg-sky-500 px-3 py-1.5 text-xs font-bold text-slate-950"
+            className="flex items-center gap-1 rounded-xl bg-sky-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-sky-400"
           >
             <RefreshCw className="h-3.5 w-3.5" /> Procesar ahora
           </button>
         </div>
       )}
 
-      {/* Panel de Captura de Foto en iPhone + Compresión en Cliente + Objeto de Referencia */}
+      {/* Panel Principal */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Columna Izquierda: Captura y Parámetros */}
         <div className="lg:col-span-5 rounded-3xl border border-slate-800 bg-slate-900/80 p-4 space-y-3.5">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
             <Camera className="h-4 w-4 text-emerald-400" />
-            1. Captura o Selecciona Foto del Plato
+            Foto del Plato o Alimento
           </h3>
 
           <label
@@ -492,24 +486,23 @@ export function PhotoPlateAnalyzer({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={imagePreview}
-                  alt="Vista previa del plato comprimida"
-                  className="max-h-40 mx-auto rounded-xl object-cover"
+                  alt="Vista previa del plato"
+                  className="max-h-48 mx-auto rounded-xl object-cover"
                 />
                 {compressionStats && (
                   <span className="inline-block rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                    Comprimida en cliente: {compressionStats.width}×
-                    {compressionStats.height}px (~{compressionStats.sizeKb} KB)
+                    Foto lista ({compressionStats.sizeKb} KB)
                   </span>
                 )}
               </div>
             ) : (
-              <div className="space-y-1.5 py-3">
+              <div className="space-y-1.5 py-4">
                 <Camera className="h-8 w-8 text-emerald-400 mx-auto" />
                 <span className="text-xs font-bold text-white block">
-                  Tomar Foto con Cámara del iPhone o Galería
+                  Tomar Foto o Elegir de Galería
                 </span>
                 <span className="text-[11px] text-slate-400 block">
-                  Se redimensiona y comprime automáticamente en tu dispositivo
+                  Apunta a tu comida desde arriba o en ángulo de 45°
                 </span>
               </div>
             )}
@@ -529,7 +522,7 @@ export function PhotoPlateAnalyzer({
               htmlFor="ref-object-select"
               className="block text-xs font-semibold text-slate-300 mb-1"
             >
-              2. Objeto de referencia volumétrica en la mesa:
+              Objeto de referencia visual en la mesa:
             </label>
             <select
               id="ref-object-select"
@@ -547,13 +540,11 @@ export function PhotoPlateAnalyzer({
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
             >
               <option value="PLATE_26CM">
-                Plato pando estándar (26 cm diámetro)
+                Plato estándar (~26 cm)
               </option>
               <option value="HAND">Mano / Puño al lado del plato</option>
-              <option value="CUTLERY">Cubiertos estándar (Tenedor 20 cm)</option>
-              <option value="NONE">
-                Sin objeto de referencia (Menor confianza en gramos)
-              </option>
+              <option value="CUTLERY">Cubierto estándar (~20 cm)</option>
+              <option value="NONE">Sin referencia</option>
             </select>
           </div>
 
@@ -562,7 +553,7 @@ export function PhotoPlateAnalyzer({
               htmlFor="dish-hint-input"
               className="block text-xs font-semibold text-slate-300 mb-1"
             >
-              3. Pista opcional o simula un plato típico colombiano:
+              Pista opcional (si deseas guiar a la IA):
             </label>
             <input
               id="dish-hint-input"
@@ -570,7 +561,7 @@ export function PhotoPlateAnalyzer({
               type="text"
               value={userHint}
               onChange={(e) => setUserHint(e.target.value)}
-              placeholder="Ej: Bandeja paisa, almuerzo con pechuga, ajiaco..."
+              placeholder="Ej: Salmón con ensalada, Ajiaco..."
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
             />
             <div className="flex flex-wrap gap-1.5 mt-2">
@@ -581,7 +572,7 @@ export function PhotoPlateAnalyzer({
                   onClick={() => setUserHint(p.label)}
                   className="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:border-emerald-500/50"
                 >
-                  {p.label.split("(")[0].trim()}
+                  {p.label.split(":")[0].trim()}
                 </button>
               ))}
             </div>
@@ -591,257 +582,250 @@ export function PhotoPlateAnalyzer({
             type="button"
             onClick={handleAnalyzePlate}
             disabled={analyzing}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 text-sm font-bold text-slate-950 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
+            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 text-sm font-bold text-slate-950 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
           >
             <Sparkles className="h-4 w-4" />
-            {analyzing
-              ? "Analizando con Google Gemini Vision..."
-              : "Analizar Plato con IA (Gemini 2.5)"}
+            {analyzing ? "Analizando imagen con IA..." : "Analizar Foto con IA"}
           </button>
         </div>
 
-        {/* Resultado del Análisis Multimodal + Corrección Interactiva (Human-in-the-Loop) */}
+        {/* Columna Derecha: Resultados y Edición */}
         <div className="lg:col-span-7 rounded-3xl border border-slate-800 bg-slate-900/80 p-4 space-y-4">
           {!analysisResult ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400 space-y-2">
+            <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-center p-6 text-slate-400 space-y-2">
               <Sparkles className="h-9 w-9 text-emerald-400/60" />
               <p className="text-sm font-bold text-slate-200">
-                Listo para identificar ingredientes y porciones
+                Toma una foto de tu plato para comenzar
               </p>
               <p className="text-xs max-w-md">
-                Toma una foto de tu plato (o selecciona uno de los platos típicos
-                colombianos de prueba) y presiona{" "}
-                <strong>&ldquo;Analizar Plato con IA&rdquo;</strong>. Podrás ajustar los
-                gramos de cada ingrediente antes de guardar.
+                La IA identificará los ingredientes y calculará las calorías y macronutrientes.
+                Podrás revisar o ajustar las porciones antes de guardar.
               </p>
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Encabezado del Resultado */}
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
-                    Modelo: {analysisResult.model_version}
+                    {analysisResult.model_version.includes("error") ? "Aviso" : `IA: ${analysisResult.model_version}`}
                   </span>
                   <h4 className="text-sm font-bold text-white">
                     {analysisResult.dish_name}
                   </h4>
                 </div>
-                <div className="flex items-center gap-2">
+                {analysisResult.overall_confidence > 0 && (
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-extrabold ${
-                      analysisResult.overall_confidence >= 0.85
+                      analysisResult.overall_confidence >= 0.8
                         ? "bg-emerald-500/20 text-emerald-300"
                         : "bg-amber-500/20 text-amber-300"
                     }`}
                   >
-                    Confianza IA:{" "}
-                    {Math.round(analysisResult.overall_confidence * 100)}%
+                    Confianza: {Math.round(analysisResult.overall_confidence * 100)}%
                   </span>
-                  {analysisResult.is_colombian_dish && (
-                    <span className="rounded-full bg-amber-500/20 px-2.5 py-1 text-[10px] font-bold text-amber-300">
-                      Prioridad Dataset CO
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
 
-              {/* Lista Editable de Ingredientes Detectados */}
-              <div className="space-y-2.5">
-                <p className="text-xs font-semibold text-slate-300">
-                  Verifica o corrige los gramos estimados antes de confirmar
-                  (Human-in-the-Loop):
-                </p>
-                {editableItems.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-white">
-                          {item.name_es}
-                        </span>
-                        <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">
-                          Conf: {Math.round(item.confidence * 100)}%
-                        </span>
+              {/* Mensaje de error si la API no pudo procesar */}
+              {analysisResult.error_message && (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-200 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+                  <span>{analysisResult.error_message}</span>
+                </div>
+              )}
+
+              {/* Lista de Ingredientes Detectados */}
+              {editableItems.length > 0 && (
+                <div className="space-y-2.5">
+                  <p className="text-xs font-semibold text-slate-300">
+                    Ingredientes identificados (puedes ajustar los gramos):
+                  </p>
+                  {editableItems.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-white">
+                            {item.name_es}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {item.kcal} kcal •{" "}
+                          <strong className="text-emerald-400">
+                            {item.protein_g}g P
+                          </strong>{" "}
+                          | {item.carbs_g}g C | {item.fat_g}g G
+                        </p>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        {item.kcal} kcal •{" "}
-                        <strong className="text-emerald-400">
-                          {item.protein_g}g P
-                        </strong>{" "}
-                        | {item.carbs_g}g C | {item.fat_g}g G
-                      </p>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor={`ai-item-grams-${idx}`}
-                        className="text-[11px] text-slate-400"
-                      >
-                        Gramos:
-                      </label>
-                      <input
-                        id={`ai-item-grams-${idx}`}
-                        name={`grams_${idx}`}
-                        type="number"
-                        min={5}
-                        max={1500}
-                        value={item.estimated_grams}
-                        onChange={(e) => {
-                          const g = Number(e.target.value) || 0;
-                          setEditableItems((prev) =>
-                            prev.map((it, i) =>
-                              i === idx ? recalculateIngredientForGrams(it, g) : it
+                      <div className="flex items-center gap-2">
+                        <label
+                          htmlFor={`ai-item-grams-${idx}`}
+                          className="text-[11px] text-slate-400"
+                        >
+                          Gramos:
+                        </label>
+                        <input
+                          id={`ai-item-grams-${idx}`}
+                          name={`grams_${idx}`}
+                          type="number"
+                          min={5}
+                          max={2000}
+                          value={item.estimated_grams}
+                          onChange={(e) => {
+                            const g = Number(e.target.value) || 0;
+                            setEditableItems((prev) =>
+                              prev.map((it, i) =>
+                                i === idx ? recalculateIngredientForGrams(it, g) : it
+                              )
+                            );
+                          }}
+                          className="w-24 rounded-xl border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditableItems((prev) =>
+                              prev.filter((_, i) => i !== idx)
                             )
-                          );
-                        }}
-                        className="w-24 rounded-xl border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditableItems((prev) =>
-                            prev.filter((_, i) => i !== idx)
-                          )
-                        }
-                        aria-label={`Quitar ${item.name_es}`}
-                        className="rounded-xl p-2 text-slate-500 hover:bg-red-500/15 hover:text-red-400"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                          }
+                          aria-label={`Quitar ${item.name_es}`}
+                          className="rounded-xl p-2 text-slate-500 hover:bg-red-500/15 hover:text-red-400"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Agregar ingrediente extra */}
+              {editableItems.length > 0 && (
+                <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-slate-800/80 bg-slate-950/50 p-3">
+                  <div className="flex-1 min-w-[180px]">
+                    <label
+                      htmlFor="add-missing-ing"
+                      className="block text-[11px] text-slate-400 mb-1"
+                    >
+                      ¿Faltó algún ingrediente?
+                    </label>
+                    <select
+                      id="add-missing-ing"
+                      name="missing_food_id"
+                      value={newIngFoodId}
+                      onChange={(e) => setNewIngFoodId(e.target.value)}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-white"
+                    >
+                      {localCatalog.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name_es}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-24">
+                    <label
+                      htmlFor="add-missing-grams"
+                      className="block text-[11px] text-slate-400 mb-1"
+                    >
+                      Gramos
+                    </label>
+                    <input
+                      id="add-missing-grams"
+                      name="missing_grams"
+                      type="number"
+                      min={5}
+                      value={newIngGrams}
+                      onChange={(e) => setNewIngGrams(Number(e.target.value) || 50)}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-white"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const f = localCatalog.find((x) => x.id === newIngFoodId);
+                      if (!f) return;
+                      const ratio = newIngGrams / 100.0;
+                      setEditableItems((prev) => [
+                        ...prev,
+                        {
+                          name_es: f.name_es,
+                          estimated_grams: newIngGrams,
+                          confidence: 1.0,
+                          kcal: Math.round(f.kcal_per_100g * ratio),
+                          protein_g: Number((f.protein_g_per_100g * ratio).toFixed(1)),
+                          carbs_g: Number((f.carbs_g_per_100g * ratio).toFixed(1)),
+                          fat_g: Number((f.fat_g_per_100g * ratio).toFixed(1)),
+                          fiber_g: Number((f.fiber_g_per_100g * ratio).toFixed(1)),
+                          kcal_per_100g: f.kcal_per_100g,
+                          protein_g_per_100g: f.protein_g_per_100g,
+                          carbs_g_per_100g: f.carbs_g_per_100g,
+                          fat_g_per_100g: f.fat_g_per_100g,
+                          fiber_g_per_100g: f.fiber_g_per_100g,
+                        },
+                      ]);
+                    }}
+                    className="flex items-center gap-1 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2.5 text-xs font-bold text-emerald-400"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Añadir
+                  </button>
+                </div>
+              )}
+
+              {/* Resumen Total y Confirmar */}
+              {editableItems.length > 0 && (
+                <div className="rounded-2xl bg-slate-950 p-3.5 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex gap-4 text-xs">
+                    <div>
+                      <span className="text-slate-400 block">Total</span>
+                      <strong className="text-base font-black text-white">
+                        {totalEditedKcal} kcal
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-emerald-400 block">Proteína</span>
+                      <strong className="text-base font-black text-emerald-400">
+                        {totalEditedProtein}g
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-sky-400 block">Carbos</span>
+                      <strong className="text-base font-black text-sky-400">
+                        {totalEditedCarbs}g
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-amber-400 block">Grasas</span>
+                      <strong className="text-base font-black text-amber-400">
+                        {totalEditedFat}g
+                      </strong>
                     </div>
                   </div>
-                ))}
-              </div>
 
-              {/* Agregar ingrediente faltante a la predicción */}
-              <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-slate-800/80 bg-slate-950/50 p-3">
-                <div className="flex-1 min-w-[180px]">
-                  <label
-                    htmlFor="add-missing-ing"
-                    className="block text-[11px] text-slate-400 mb-1"
+                  <button
+                    type="button"
+                    onClick={handleConfirmAndSave}
+                    className="rounded-2xl bg-emerald-500 px-5 py-3 text-xs font-bold text-slate-950 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
                   >
-                    ¿Faltó un ingrediente en la detección? Agrégalo:
-                  </label>
-                  <select
-                    id="add-missing-ing"
-                    name="missing_food_id"
-                    value={newIngFoodId}
-                    onChange={(e) => setNewIngFoodId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-white"
-                  >
-                    {localCatalog.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name_es}
-                      </option>
-                    ))}
-                  </select>
+                    Guardar en {selectedCategory}
+                  </button>
                 </div>
-                <div className="w-24">
-                  <label
-                    htmlFor="add-missing-grams"
-                    className="block text-[11px] text-slate-400 mb-1"
-                  >
-                    Gramos
-                  </label>
-                  <input
-                    id="add-missing-grams"
-                    name="missing_grams"
-                    type="number"
-                    min={5}
-                    value={newIngGrams}
-                    onChange={(e) => setNewIngGrams(Number(e.target.value) || 50)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-white"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const f = localCatalog.find((x) => x.id === newIngFoodId);
-                    if (!f) return;
-                    const ratio = newIngGrams / 100.0;
-                    setEditableItems((prev) => [
-                      ...prev,
-                      {
-                        name_es: f.name_es,
-                        estimated_grams: newIngGrams,
-                        confidence: 1.0,
-                        kcal: Math.round(f.kcal_per_100g * ratio),
-                        protein_g: Number(
-                          (f.protein_g_per_100g * ratio).toFixed(1)
-                        ),
-                        carbs_g: Number((f.carbs_g_per_100g * ratio).toFixed(1)),
-                        fat_g: Number((f.fat_g_per_100g * ratio).toFixed(1)),
-                        fiber_g: Number((f.fiber_g_per_100g * ratio).toFixed(1)),
-                        kcal_per_100g: f.kcal_per_100g,
-                        protein_g_per_100g: f.protein_g_per_100g,
-                        carbs_g_per_100g: f.carbs_g_per_100g,
-                        fat_g_per_100g: f.fat_g_per_100g,
-                        fiber_g_per_100g: f.fiber_g_per_100g,
-                      },
-                    ]);
-                  }}
-                  className="flex items-center gap-1 rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2.5 text-xs font-bold text-emerald-400"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Añadir
-                </button>
-              </div>
+              )}
 
-              {/* Resumen Total del Plato y Botón de Confirmación Human-in-the-Loop */}
-              <div className="rounded-2xl bg-slate-950 p-3.5 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex gap-4 text-xs">
-                  <div>
-                    <span className="text-slate-400 block">Total Plato</span>
-                    <strong className="text-base font-black text-white">
-                      {totalEditedKcal} kcal
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-emerald-400 block">Proteína</span>
-                    <strong className="text-base font-black text-emerald-400">
-                      {totalEditedProtein}g
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-sky-400 block">Carbos</span>
-                    <strong className="text-base font-black text-sky-400">
-                      {totalEditedCarbs}g
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-amber-400 block">Grasas</span>
-                    <strong className="text-base font-black text-amber-400">
-                      {totalEditedFat}g
-                    </strong>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleConfirmAndSave}
-                  className="rounded-2xl bg-emerald-500 px-5 py-3 text-xs font-bold text-slate-950 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
-                >
-                  Confirmar Corrección y Guardar en {selectedCategory}
-                </button>
-              </div>
-
-              {hitlFeedback && (
+              {savedSuccessMsg && (
                 <div
                   role="status"
                   aria-live="polite"
-                  className="rounded-2xl border border-emerald-500/40 bg-emerald-500/15 p-3.5 text-xs text-emerald-200 flex items-start gap-2.5"
+                  className="rounded-2xl border border-emerald-500/40 bg-emerald-500/15 p-3.5 text-xs text-emerald-200 flex items-center gap-2.5"
                 >
-                  <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="font-bold text-white block">
-                      ¡Comida registrada y par (Imagen, Etiqueta Corregida) guardado en
-                      el Dataset!
-                    </strong>
-                    Error de estimación inicial corregido (MAPE):{" "}
-                    <strong>{hitlFeedback.mape}%</strong> • Muestra etiquetada con
-                    prioridad de gastronomía colombiana para el pipeline de fine-tuning.
-                  </div>
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                  <strong className="font-bold text-white">
+                    {savedSuccessMsg}
+                  </strong>
                 </div>
               )}
             </div>

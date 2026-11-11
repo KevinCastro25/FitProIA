@@ -1015,10 +1015,8 @@ def analyze_plate_endpoint(
         total_carbs_g=total_c,
         total_fat_g=total_f,
         total_fiber_g=total_fib,
-        disclaimer=(
-            "Estimación visual aproximada por IA: los navegadores web no tienen acceso al sensor de profundidad LiDAR. "
-            "Verifica o ajusta los gramos antes de confirmar."
-        ),
+        disclaimer="Estimación visual por IA. Puedes ajustar los gramos si lo deseas antes de registrar.",
+        error_message=result.get("error_message"),
     )
 
 
