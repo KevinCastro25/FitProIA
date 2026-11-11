@@ -20,6 +20,91 @@ export interface StandardDishPreset {
 
 export const COMPREHENSIVE_DISH_PRESETS: StandardDishPreset[] = [
   {
+    id: "sopa_minestrone",
+    label: "🥣 Sopa de Minestrone / Minestrong",
+    category: "Almuerzo/Cena",
+    dish_name: "Sopa Minestrone Tradicional con Verduras, Frijoles y Pasta",
+    is_colombian_dish: true,
+    overall_confidence: 0.95,
+    keywords: [
+      "minestrone",
+      "minestrong",
+      "sopa de minestrone",
+      "sopa de minestrong",
+      "sopa minestrone",
+      "sopa minestrong",
+      "sopa minestrón",
+      "minestron"
+    ],
+    items: [
+      {
+        name_es: "Sopa Minestrone casera (caldo, verduras, alubias y pasta corta)",
+        estimated_grams: 350,
+        confidence: 0.95,
+        kcal: 186,
+        protein_g: 9.8,
+        carbs_g: 29.4,
+        fat_g: 3.5,
+        fiber_g: 6.3,
+        kcal_per_100g: 53,
+        protein_g_per_100g: 2.8,
+        carbs_g_per_100g: 8.4,
+        fat_g_per_100g: 1.0,
+        fiber_g_per_100g: 1.8,
+      },
+    ],
+  },
+  {
+    id: "carne_en_rollo_ciruela",
+    label: "🥩 Carne en Rollo con Salsa de Ciruela",
+    category: "Almuerzo/Cena",
+    dish_name: "Carne en Rollo Rellena Bañada en Salsa de Ciruela",
+    is_colombian_dish: true,
+    overall_confidence: 0.94,
+    keywords: [
+      "carne en rollo",
+      "carne en rollo con salsa de ciruela",
+      "rollo de carne",
+      "rollo de carne en salsa de ciruela",
+      "carne en rollo agridulce",
+      "rollo de carne con ciruela",
+      "carne rollo ciruela",
+      "rollo de carne de res"
+    ],
+    items: [
+      {
+        name_es: "Carne en rollo rellena (res/cerdo, jamón, verduras y tocineta)",
+        estimated_grams: 170,
+        confidence: 0.94,
+        kcal: 338,
+        protein_g: 37.4,
+        carbs_g: 3.5,
+        fat_g: 19.5,
+        fiber_g: 0.8,
+        kcal_per_100g: 199,
+        protein_g_per_100g: 22.0,
+        carbs_g_per_100g: 2.1,
+        fat_g_per_100g: 11.5,
+        fiber_g_per_100g: 0.5,
+      },
+      {
+        name_es: "Salsa de ciruelas pasas caramelizada",
+        estimated_grams: 50,
+        confidence: 0.93,
+        kcal: 98,
+        protein_g: 0.6,
+        carbs_g: 23.5,
+        fat_g: 0.3,
+        fiber_g: 1.5,
+        kcal_per_100g: 196,
+        protein_g_per_100g: 1.2,
+        carbs_g_per_100g: 47.0,
+        fat_g_per_100g: 0.6,
+        fiber_g_per_100g: 3.0,
+      },
+    ],
+  },
+  {
     id: "pocillo_chocolate",
     label: "☕ Pocillo de Chocolate Caliente",
     category: "Desayuno",
@@ -1246,6 +1331,226 @@ function cleanText(text: string): string {
 }
 
 /**
+ * Perfilador culinario inteligente: infiere gramaje realista, calorías y macronutrientes
+ * de acuerdo a palabras clave gastronómicas cuando un plato nuevo no se encuentra en presets.
+ */
+export function estimateSemanticDishProfile(dishQuery: string): {
+  items: AiDetectedIngredient[];
+  totalKcal: number;
+  totalP: number;
+  totalC: number;
+  totalF: number;
+  totalFib: number;
+  disclaimer: string;
+} {
+  const q = cleanText(dishQuery);
+  const title = dishQuery.trim().charAt(0).toUpperCase() + dishQuery.trim().slice(1);
+
+  // 1. Sopas, caldos, cremas y cazuelas
+  if (/sopa|caldo|crema|consome|consomé|minestrone|minestrong|ramen|cazuela|potaje|mote/.test(q)) {
+    const isCrema = /crema|auyama|espinaca|champiñon|champinon|maiz|leche/.test(q);
+    const grams = isCrema ? 300 : 350;
+    const kcal = isCrema ? 185 : 175;
+    const p = isCrema ? 5.5 : 9.5;
+    const c = isCrema ? 22.0 : 26.5;
+    const f = isCrema ? 8.5 : 3.8;
+    const fib = isCrema ? 3.0 : 5.2;
+
+    return createSingleProfile(title, grams, kcal, p, c, f, fib, `Sopa/caldo estimada en tazón estándar (${grams}g). Puedes ajustar los gramos.`);
+  }
+
+  // 2. Carnes en rollo, rellenas o con salsas dulces / agridulces
+  if (/rollo|relleno|rellena|ciruela|agridulce|bbq|miel|teriyaki|naranja/.test(q)) {
+    const meatGrams = 160;
+    const sauceGrams = 60;
+    const meatKcal = 310;
+    const meatP = 34.0;
+    const meatC = 3.0;
+    const meatF = 18.0;
+    const meatFib = 0.8;
+
+    const sauceKcal = 125;
+    const sauceP = 1.2;
+    const sauceC = 28.5;
+    const sauceF = 0.8;
+    const sauceFib = 1.2;
+
+    const items: AiDetectedIngredient[] = [
+      {
+        name_es: `${title} (Carne preparada)`,
+        estimated_grams: meatGrams,
+        confidence: 0.89,
+        kcal: meatKcal,
+        protein_g: meatP,
+        carbs_g: meatC,
+        fat_g: meatF,
+        fiber_g: meatFib,
+        kcal_per_100g: Math.round((meatKcal / meatGrams) * 100),
+        protein_g_per_100g: Number(((meatP / meatGrams) * 100).toFixed(1)),
+        carbs_g_per_100g: Number(((meatC / meatGrams) * 100).toFixed(1)),
+        fat_g_per_100g: Number(((meatF / meatGrams) * 100).toFixed(1)),
+        fiber_g_per_100g: 0.5,
+      },
+      {
+        name_es: `Salsa agridulce / aderezo de ${title}`,
+        estimated_grams: sauceGrams,
+        confidence: 0.87,
+        kcal: sauceKcal,
+        protein_g: sauceP,
+        carbs_g: sauceC,
+        fat_g: sauceF,
+        fiber_g: sauceFib,
+        kcal_per_100g: Math.round((sauceKcal / sauceGrams) * 100),
+        protein_g_per_100g: Number(((sauceP / sauceGrams) * 100).toFixed(1)),
+        carbs_g_per_100g: Number(((sauceC / sauceGrams) * 100).toFixed(1)),
+        fat_g_per_100g: Number(((sauceF / sauceGrams) * 100).toFixed(1)),
+        fiber_g_per_100g: 1.0,
+      },
+    ];
+
+    const totalKcal = meatKcal + sauceKcal;
+    const totalP = Number((meatP + sauceP).toFixed(1));
+    const totalC = Number((meatC + sauceC).toFixed(1));
+    const totalF = Number((meatF + sauceF).toFixed(1));
+    const totalFib = Number((meatFib + sauceFib).toFixed(1));
+
+    return {
+      items,
+      totalKcal,
+      totalP,
+      totalC,
+      totalF,
+      totalFib,
+      disclaimer: `Plato desglosado en porción de carne (${meatGrams}g) y salsa (${sauceGrams}g).`,
+    };
+  }
+
+  // 3. Chicharrón, tocino y fritos grasos
+  if (/chicharron|chicharrón|tocino|bacon/.test(q)) {
+    return createSingleProfile(title, 100, 520, 35.0, 0.0, 42.0, 0.0, "Porción de chicharrón/tocino crocante.");
+  }
+
+  // 4. Cerdo / Costilla / Chuleta
+  if (/cerdo|costilla|chuleta|bondiola|lomo de cerdo|pernil/.test(q)) {
+    return createSingleProfile(title, 180, 390, 35.0, 2.0, 27.0, 0.0, "Porción de carne de cerdo asada/cocida.");
+  }
+
+  // 5. Carnes rojas asadas / magras / bistec
+  if (/carne|res|lomo|bife|solomito|churrasco|bistec|punta de anca|sobrebarriga/.test(q)) {
+    return createSingleProfile(title, 180, 320, 42.0, 0.5, 16.5, 0.0, "Corte de carne de res magro asado.");
+  }
+
+  // 6. Pollo / Pavo / Aves
+  if (/pollo|pechuga|muslo|alitas|alita|pavo/.test(q)) {
+    const isFrito = /frito|apanado|broaster|alitas/.test(q);
+    const isPechuga = /pechuga|plancha|magro/.test(q);
+    const grams = isFrito ? 200 : isPechuga ? 160 : 180;
+    const kcal = isFrito ? 480 : isPechuga ? 250 : 310;
+    const p = isFrito ? 32.0 : isPechuga ? 46.0 : 38.0;
+    const c = isFrito ? 16.0 : 0.0;
+    const f = isFrito ? 32.0 : isPechuga ? 6.0 : 16.0;
+    const fib = isFrito ? 0.8 : 0.0;
+    return createSingleProfile(title, grams, kcal, p, c, f, fib, "Porción de ave preparada.");
+  }
+
+  // 7. Pescados y mariscos
+  if (/pescado|salmon|salmón|tilapia|trucha|atun|atún|camaron|camarones|mariscos|mojarra|robalo/.test(q)) {
+    const isSalmon = /salmon|salmón/.test(q);
+    const grams = 180;
+    const kcal = isSalmon ? 360 : 210;
+    const p = isSalmon ? 36.0 : 38.0;
+    const c = 0.0;
+    const f = isSalmon ? 23.0 : 6.0;
+    return createSingleProfile(title, grams, kcal, p, c, f, 0.0, "Filete o porción de pescado/mariscos.");
+  }
+
+  // 8. Pastas y lasagnas
+  if (/pasta|espagueti|tallarines|lasagna|lasaña|ravioli|macarrones|fideos|canelones/.test(q)) {
+    return createSingleProfile(title, 300, 480, 24.0, 64.0, 14.5, 3.5, "Plato de pasta con salsa y proteína.");
+  }
+
+  // 9. Arroces preparados
+  if (/arroz con|paella|risotto|chaufa|arroz mixto|arroz frito/.test(q)) {
+    return createSingleProfile(title, 280, 440, 22.0, 60.0, 12.0, 2.5, "Tazón de arroz compuesto con acompañamientos.");
+  }
+
+  // 10. Ensaladas y vegetales
+  if (/ensalada|salad|verduras|vegetales|lechuga|cesar/.test(q)) {
+    const hasProtein = /pollo|atun|atún|huevo|cesar|aderezo/.test(q);
+    const grams = hasProtein ? 240 : 160;
+    const kcal = hasProtein ? 260 : 95;
+    const p = hasProtein ? 18.0 : 2.8;
+    const c = hasProtein ? 14.0 : 11.0;
+    const f = hasProtein ? 15.0 : 4.8;
+    const fib = hasProtein ? 3.8 : 3.6;
+    return createSingleProfile(title, grams, kcal, p, c, f, fib, "Ensalada fresca servida.");
+  }
+
+  // 11. Comida rápida y fritos
+  if (/hamburguesa|burger|pizza|perro|hot dog|sandwich|sanduche|burrito|tacos|empanada/.test(q)) {
+    return createSingleProfile(title, 260, 580, 28.0, 52.0, 30.0, 3.2, "Comida rápida / preparación completa.");
+  }
+
+  // 12. Huevos y desayunos
+  if (/huevo|huevos|omelette|pericos|revueltos|desayuno|pancakes|waffle/.test(q)) {
+    return createSingleProfile(title, 170, 280, 18.0, 15.0, 16.0, 1.5, "Preparación matutina tradicional.");
+  }
+
+  // 13. Bebidas e infusiones
+  if (/chocolate|cacao|cocoa|cafe|café|tinto|pocillo|taza|vaso|jugo|batido|leche|te|té|aromatica|aromática|infusion|infusión|panela/.test(q)) {
+    const isTinto = /tinto|cafe negro|café negro/.test(q);
+    const isChoc = /chocolate|cacao|cocoa/.test(q);
+    const grams = isTinto ? 150 : 240;
+    const kcal = isTinto ? 5 : isChoc ? 188 : 120;
+    const p = isTinto ? 0.2 : isChoc ? 7.4 : 3.0;
+    const c = isTinto ? 0.8 : isChoc ? 22.5 : 20.0;
+    const f = isTinto ? 0.0 : isChoc ? 7.2 : 3.0;
+    const fib = isChoc ? 1.5 : 0.0;
+    return createSingleProfile(title, grams, kcal, p, c, f, fib, "Bebida estimada por taza estándar.");
+  }
+
+  // 14. Fallback gastronómico general equilibrado
+  return createSingleProfile(title, 200, 320, 22.0, 30.0, 12.0, 2.0, "Plato estimado con porción estándar equilibrada.");
+}
+
+function createSingleProfile(
+  name: string,
+  grams: number,
+  kcal: number,
+  p: number,
+  c: number,
+  f: number,
+  fib: number,
+  disclaimer: string
+) {
+  return {
+    items: [
+      {
+        name_es: name,
+        estimated_grams: grams,
+        confidence: 0.86,
+        kcal,
+        protein_g: p,
+        carbs_g: c,
+        fat_g: f,
+        fiber_g: fib,
+        kcal_per_100g: Math.round((kcal / grams) * 100),
+        protein_g_per_100g: Number(((p / grams) * 100).toFixed(1)),
+        carbs_g_per_100g: Number(((c / grams) * 100).toFixed(1)),
+        fat_g_per_100g: Number(((f / grams) * 100).toFixed(1)),
+        fiber_g_per_100g: Number(((fib / grams) * 100).toFixed(1)),
+      },
+    ],
+    totalKcal: kcal,
+    totalP: p,
+    totalC: c,
+    totalF: f,
+    totalFib: fib,
+    disclaimer,
+  };
+}
+
+/**
  * Resuelve un plato o receta completa a partir del texto ingresado por el usuario
  * o una coincidencia aproximada con el catálogo local de alimentos.
  */
@@ -1352,50 +1657,28 @@ export function resolveDishRecipe(
     }
   }
 
-  // 3. Fallback inteligente: si no se encontró coincidencia exacta pero el usuario escribió algo
+  // 3. Fallback inteligente semántico: si no se encontró coincidencia exacta pero el usuario escribió algo
   if (queryClean.length > 0) {
     const defaultName = dishQuery.trim();
     const titleCaseName = defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
 
-    // Detectar si el texto refiere a una bebida / infusión o comida sólida
-    const isDrink = /chocolate|cacao|cocoa|cafe|café|tinto|pocillo|taza|vaso|jugo|batido|leche|te|té|aromatica|aromática|infusion|infusión|panela/i.test(defaultName);
-    const estimatedGrams = isDrink ? 240 : 180;
-    const estimatedKcal = isDrink ? 160 : 250;
-    const estimatedP = isDrink ? 6.0 : 18.0;
-    const estimatedC = isDrink ? 22.0 : 26.0;
-    const estimatedF = isDrink ? 5.0 : 7.0;
+    const profile = estimateSemanticDishProfile(defaultName);
 
     return {
       prediction_id: `custom-dish-${Date.now()}`,
-      model_version: "plato-manual-estimado",
+      model_version: "perfilador-semantico-gastronomico",
       dish_name: titleCaseName,
       reference_object: refObj,
-      overall_confidence: 0.85,
+      overall_confidence: 0.86,
       is_colombian_dish: true,
       flagged_for_review: false,
-      items: [
-        {
-          name_es: titleCaseName,
-          estimated_grams: estimatedGrams,
-          confidence: 0.85,
-          kcal: estimatedKcal,
-          protein_g: estimatedP,
-          carbs_g: estimatedC,
-          fat_g: estimatedF,
-          fiber_g: 1.0,
-          kcal_per_100g: Math.round((estimatedKcal / estimatedGrams) * 100),
-          protein_g_per_100g: Number(((estimatedP / estimatedGrams) * 100).toFixed(1)),
-          carbs_g_per_100g: Number(((estimatedC / estimatedGrams) * 100).toFixed(1)),
-          fat_g_per_100g: Number(((estimatedF / estimatedGrams) * 100).toFixed(1)),
-          fiber_g_per_100g: 0.5,
-        },
-      ],
-      total_kcal: estimatedKcal,
-      total_protein_g: estimatedP,
-      total_carbs_g: estimatedC,
-      total_fat_g: estimatedF,
-      total_fiber_g: 1.0,
-      disclaimer: `Plato estimado con porción estándar (${estimatedGrams}g). Puedes ajustar los gramos con total libertad.`,
+      items: profile.items,
+      total_kcal: profile.totalKcal,
+      total_protein_g: profile.totalP,
+      total_carbs_g: profile.totalC,
+      total_fat_g: profile.totalF,
+      total_fiber_g: profile.totalFib,
+      disclaimer: profile.disclaimer,
       error_message: null,
     };
   }

@@ -470,6 +470,70 @@ COLOMBIAN_PLATE_PRESETS = {
             },
         ],
     },
+    "sopa_minestrone": {
+        "dish_name": "Sopa Minestrone Tradicional con Vegetales, Alubias y Pasta Corta",
+        "is_colombian_dish": False,
+        "overall_confidence": 0.93,
+        "items": [
+            {
+                "name_es": "Caldo de vegetales con tomate, zanahoria y apio",
+                "estimated_grams": 250.0,
+                "confidence": 0.92,
+                "kcal_per_100g": 26.0,
+                "protein_g_per_100g": 1.0,
+                "carbs_g_per_100g": 4.6,
+                "fat_g_per_100g": 0.3,
+                "fiber_g_per_100g": 1.1,
+            },
+            {
+                "name_es": "Alubias blancas / Fríjoles tiernos cocidos",
+                "estimated_grams": 50.0,
+                "confidence": 0.91,
+                "kcal_per_100g": 136.0,
+                "protein_g_per_100g": 9.6,
+                "carbs_g_per_100g": 22.8,
+                "fat_g_per_100g": 0.6,
+                "fiber_g_per_100g": 6.2,
+            },
+            {
+                "name_es": "Pasta corta cocida al dente",
+                "estimated_grams": 50.0,
+                "confidence": 0.90,
+                "kcal_per_100g": 130.0,
+                "protein_g_per_100g": 5.0,
+                "carbs_g_per_100g": 27.0,
+                "fat_g_per_100g": 0.8,
+                "fiber_g_per_100g": 1.6,
+            },
+        ],
+    },
+    "carne_en_rollo_ciruela": {
+        "dish_name": "Carne en Rollo Rellena Bañada en Salsa Dulce de Ciruela",
+        "is_colombian_dish": True,
+        "overall_confidence": 0.94,
+        "items": [
+            {
+                "name_es": "Rollo de carne de res magra relleno con verduras",
+                "estimated_grams": 160.0,
+                "confidence": 0.94,
+                "kcal_per_100g": 195.0,
+                "protein_g_per_100g": 21.2,
+                "carbs_g_per_100g": 2.0,
+                "fat_g_per_100g": 11.2,
+                "fiber_g_per_100g": 0.5,
+            },
+            {
+                "name_es": "Salsa agridulce de ciruelas pasas",
+                "estimated_grams": 60.0,
+                "confidence": 0.92,
+                "kcal_per_100g": 210.0,
+                "protein_g_per_100g": 2.0,
+                "carbs_g_per_100g": 47.5,
+                "fat_g_per_100g": 1.3,
+                "fiber_g_per_100g": 2.0,
+            },
+        ],
+    },
 }
 
 
@@ -519,6 +583,284 @@ def _enrich_item_with_db(item: dict, db: Session) -> dict:
     }
 
 
+def estimate_semantic_dish_profile(dish_name: str) -> dict:
+    """
+    Perfilador gastronómico inteligente: infiere porción, calorías y macros realistas
+    según la categoría gastronómica (sopas, carnes rellenas/agridulces, aves, pescados, etc.)
+    cuando un plato nuevo o receta personalizada no existe en los presets estándar.
+    """
+    q = dish_name.lower().strip()
+    title = dish_name.strip().capitalize()
+
+    # 1. Sopas y caldos
+    if any(k in q for k in ["sopa", "caldo", "crema", "consome", "consomé", "minestrone", "minestrong", "ramen", "cazuela", "potaje", "mote"]):
+        is_crema = any(k in q for k in ["crema", "auyama", "espinaca", "champiñon", "champinon", "maiz", "leche"])
+        grams = 300.0 if is_crema else 350.0
+        kcal = 185.0 if is_crema else 175.0
+        p = 5.5 if is_crema else 9.5
+        c = 22.0 if is_crema else 26.5
+        f = 8.5 if is_crema else 3.8
+        fib = 3.0 if is_crema else 5.2
+        return {
+            "dish_name": title,
+            "items": [{
+                "name_es": title,
+                "estimated_grams": grams,
+                "confidence": 0.88,
+                "kcal_per_100g": round((kcal / grams) * 100, 1),
+                "protein_g_per_100g": round((p / grams) * 100, 1),
+                "carbs_g_per_100g": round((c / grams) * 100, 1),
+                "fat_g_per_100g": round((f / grams) * 100, 1),
+                "fiber_g_per_100g": round((fib / grams) * 100, 1),
+            }]
+        }
+
+    # 2. Rollo de carne / salsas dulces o agridulces
+    if any(k in q for k in ["rollo", "relleno", "rellena", "ciruela", "agridulce", "bbq", "miel", "teriyaki", "naranja"]):
+        return {
+            "dish_name": title,
+            "items": [
+                {
+                    "name_es": f"{title} (Carne preparada)",
+                    "estimated_grams": 160.0,
+                    "confidence": 0.94,
+                    "kcal_per_100g": 195.0,
+                    "protein_g_per_100g": 21.2,
+                    "carbs_g_per_100g": 2.0,
+                    "fat_g_per_100g": 11.2,
+                    "fiber_g_per_100g": 0.5,
+                },
+                {
+                    "name_es": f"Salsa agridulce de {title}",
+                    "estimated_grams": 60.0,
+                    "confidence": 0.92,
+                    "kcal_per_100g": 210.0,
+                    "protein_g_per_100g": 2.0,
+                    "carbs_g_per_100g": 47.5,
+                    "fat_g_per_100g": 1.3,
+                    "fiber_g_per_100g": 2.0,
+                }
+            ]
+        }
+
+    # 3. Chicharrón y tocino
+    if any(k in q for k in ["chicharron", "chicharrón", "tocino", "bacon"]):
+        return {
+            "dish_name": title,
+            "items": [{
+                "name_es": title,
+                "estimated_grams": 100.0,
+                "confidence": 0.90,
+                "kcal_per_100g": 520.0,
+                "protein_g_per_100g": 35.0,
+                "carbs_g_per_100g": 0.0,
+                "fat_g_per_100g": 42.0,
+                "fiber_g_per_100g": 0.0,
+            }]
+        }
+
+    # 4. Cerdo / Costilla / Chuleta
+    if any(k in q for k in ["cerdo", "costilla", "chuleta", "bondiola", "pernil"]):
+        return {
+            "dish_name": title,
+            "items": [{
+                "name_es": title,
+                "estimated_grams": 180.0,
+                "confidence": 0.88,
+                "kcal_per_100g": 217.0,
+                "protein_g_per_100g": 19.4,
+                "carbs_g_per_100g": 1.1,
+                "fat_g_per_100g": 15.0,
+                "fiber_g_per_100g": 0.0,
+            }]
+        }
+
+    # 5. Carnes rojas asadas / lomo / bistec
+    if any(k in q for k in ["carne", "res", "lomo", "bife", "solomito", "churrasco", "bistec", "punta de anca", "sobrebarriga"]):
+        return {
+            "dish_name": title,
+            "items": [{
+                "name_es": title,
+                "estimated_grams": 180.0,
+                "confidence": 0.89,
+                "kcal_per_100g": 178.0,
+                "protein_g_per_100g": 23.3,
+                "carbs_g_per_100g": 0.3,
+                "fat_g_per_100g": 9.2,
+                "fiber_g_per_100g": 0.0,
+            }]
+        }
+
+    # 6. Pollo / Pavo / Aves
+    if any(k in q for k in ["pollo", "pechuga", "muslo", "alitas", "alita", "pavo"]):
+        is_frito = any(k in q for k in ["frito", "apanado", "broaster", "alitas"])
+        is_pechuga = any(k in q for k in ["pechuga", "plancha", "magro"])
+        grams = 200.0 if is_frito else (160.0 if is_pechuga else 180.0)
+        kcal_100 = 240.0 if is_frito else (156.0 if is_pechuga else 172.0)
+        p_100 = 16.0 if is_frito else (28.7 if is_pechuga else 21.1)
+        c_100 = 8.0 if is_frito else 0.0
+        f_100 = 16.0 if is_frito else (3.7 if is_pechuga else 8.9)
+        return {
+            "dish_name": title,
+            "items": [{
+                "name_es": title,
+                "estimated_grams": grams,
+                "confidence": 0.88,
+                "kcal_per_100g": kcal_100,
+                "protein_g_per_100g": p_100,
+                "carbs_g_per_100g": c_100,
+                "fat_g_per_100g": f_100,
+                "fiber_g_per_100g": 0.0,
+            }]
+        }
+
+    # 7. Pescados y mariscos
+    if any(k in q for k in ["pescado", "salmon", "salmón", "tilapia", "trucha", "atun", "atún", "camaron", "camarones", "mariscos", "mojarra", "robalo"]):
+        is_salmon = "salmon" in q or "salmón" in q
+        grams = 180.0
+        kcal_100 = 200.0 if is_salmon else 117.0
+        p_100 = 20.0 if is_salmon else 21.1
+        f_100 = 12.8 if is_salmon else 3.3
+        return {
+            "dish_name": title,
+            "items": [{
+                "name_es": title,
+                "estimated_grams": grams,
+                "confidence": 0.88,
+                "kcal_per_100g": kcal_100,
+                "protein_g_per_100g": p_100,
+                "carbs_g_per_100g": 0.0,
+                "fat_g_per_100g": f_100,
+                "fiber_g_per_100g": 0.0,
+            }]
+        }
+
+    # 8. Pastas y lasagnas
+    if any(k in q for k in ["pasta", "espagueti", "tallarines", "lasagna", "lasaña", "ravioli", "macarrones", "fideos", "canelones"]):
+        return {
+            "dish_name": title,
+            "items": [{
+                "name_es": title,
+                "estimated_grams": 300.0,
+                "confidence": 0.89,
+                "kcal_per_100g": 160.0,
+                "protein_g_per_100g": 8.0,
+                "carbs_g_per_100g": 21.3,
+                "fat_g_per_100g": 4.8,
+                "fiber_g_per_100g": 1.2,
+            }]
+        }
+
+    # 9. Arroces preparados
+    if any(k in q for k in ["arroz con", "paella", "risotto", "chaufa", "arroz mixto", "arroz frito"]):
+        return {
+            "dish_name": title,
+            "items": [{
+                "name_es": title,
+                "estimated_grams": 280.0,
+                "confidence": 0.88,
+                "kcal_per_100g": 157.0,
+                "protein_g_per_100g": 7.8,
+                "carbs_g_per_100g": 21.4,
+                "fat_g_per_100g": 4.3,
+                "fiber_g_per_100g": 0.9,
+            }]
+        }
+
+    # 10. Ensaladas
+    if any(k in q for k in ["ensalada", "salad", "verduras", "vegetales", "lechuga", "cesar"]):
+        has_protein = any(k in q for k in ["pollo", "atun", "atún", "huevo", "cesar", "aderezo"])
+        grams = 240.0 if has_protein else 160.0
+        kcal_100 = 108.0 if has_protein else 59.0
+        p_100 = 7.5 if has_protein else 1.8
+        c_100 = 5.8 if has_protein else 6.9
+        f_100 = 6.2 if has_protein else 3.0
+        return {
+            "dish_name": title,
+            "items": [{
+                "name_es": title,
+                "estimated_grams": grams,
+                "confidence": 0.86,
+                "kcal_per_100g": kcal_100,
+                "protein_g_per_100g": p_100,
+                "carbs_g_per_100g": c_100,
+                "fat_g_per_100g": f_100,
+                "fiber_g_per_100g": 2.0,
+            }]
+        }
+
+    # 11. Comida rápida
+    if any(k in q for k in ["hamburguesa", "burger", "pizza", "perro", "hot dog", "sandwich", "sanduche", "burrito", "tacos", "empanada"]):
+        return {
+            "dish_name": title,
+            "items": [{
+                "name_es": title,
+                "estimated_grams": 260.0,
+                "confidence": 0.89,
+                "kcal_per_100g": 223.0,
+                "protein_g_per_100g": 10.8,
+                "carbs_g_per_100g": 20.0,
+                "fat_g_per_100g": 11.5,
+                "fiber_g_per_100g": 1.2,
+            }]
+        }
+
+    # 12. Huevos / Desayuno
+    if any(k in q for k in ["huevo", "huevos", "omelette", "pericos", "revueltos", "desayuno", "pancakes", "waffle"]):
+        return {
+            "dish_name": title,
+            "items": [{
+                "name_es": title,
+                "estimated_grams": 170.0,
+                "confidence": 0.89,
+                "kcal_per_100g": 165.0,
+                "protein_g_per_100g": 10.6,
+                "carbs_g_per_100g": 8.8,
+                "fat_g_per_100g": 9.4,
+                "fiber_g_per_100g": 0.9,
+            }]
+        }
+
+    # 13. Bebidas
+    if any(k in q for k in ["chocolate", "cacao", "cocoa", "cafe", "café", "tinto", "pocillo", "taza", "vaso", "jugo", "batido", "leche", "te", "té", "aromatica", "aromática", "infusion", "infusión", "panela"]):
+        is_tinto = any(k in q for k in ["tinto", "cafe negro", "café negro"])
+        is_choc = any(k in q for k in ["chocolate", "cacao", "cocoa"])
+        grams = 150.0 if is_tinto else 240.0
+        kcal_100 = 3.3 if is_tinto else (78.3 if is_choc else 50.0)
+        p_100 = 0.1 if is_tinto else (3.1 if is_choc else 1.2)
+        c_100 = 0.5 if is_tinto else (9.4 if is_choc else 8.3)
+        f_100 = 0.0 if is_tinto else (3.0 if is_choc else 1.2)
+        fib_100 = 0.6 if is_choc else 0.0
+        return {
+            "dish_name": title,
+            "items": [{
+                "name_es": title,
+                "estimated_grams": grams,
+                "confidence": 0.90,
+                "kcal_per_100g": kcal_100,
+                "protein_g_per_100g": p_100,
+                "carbs_g_per_100g": c_100,
+                "fat_g_per_100g": f_100,
+                "fiber_g_per_100g": fib_100,
+            }]
+        }
+
+    # 14. Fallback equilibrado
+    return {
+        "dish_name": title,
+        "items": [{
+            "name_es": title,
+            "estimated_grams": 200.0,
+            "confidence": 0.85,
+            "kcal_per_100g": 160.0,
+            "protein_g_per_100g": 11.0,
+            "carbs_g_per_100g": 15.0,
+            "fat_g_per_100g": 6.0,
+            "fiber_g_per_100g": 1.0,
+        }]
+    }
+
+
 def analyze_plate_photo(
     image_base64: str,
     reference_object: str,
@@ -563,7 +905,11 @@ def analyze_plate_photo(
         hint_lower = hint_clean.lower()
 
         if not api_key or api_key in ("tu-google-gemini-api-key", "your-api-key"):
-            if "chocolate" in hint_lower or "cacao" in hint_lower or "cocoa" in hint_lower:
+            if "minestrone" in hint_lower or "minestrong" in hint_lower:
+                preset = COLOMBIAN_PLATE_PRESETS["sopa_minestrone"]
+            elif "rollo" in hint_lower or "ciruela" in hint_lower:
+                preset = COLOMBIAN_PLATE_PRESETS["carne_en_rollo_ciruela"]
+            elif "chocolate" in hint_lower or "cacao" in hint_lower or "cocoa" in hint_lower:
                 preset = COLOMBIAN_PLATE_PRESETS["pocillo_chocolate"]
             elif "cafe con leche" in hint_lower or "café con leche" in hint_lower or "perico" in hint_lower:
                 preset = COLOMBIAN_PLATE_PRESETS["cafe_con_leche"]
@@ -594,29 +940,13 @@ def analyze_plate_photo(
             elif "pollo" in hint_lower:
                 preset = COLOMBIAN_PLATE_PRESETS["almuerzo_ejecutivo_pollo"]
             elif hint_clean:
-                title_name = hint_clean.capitalize()
-                is_drink = any(w in hint_lower for w in ["chocolate", "cafe", "café", "tinto", "pocillo", "taza", "jugo", "leche", "batido", "te", "té", "aromatica", "aromática"])
-                grams = 240.0 if is_drink else 180.0
-                kcal = 160.0 if is_drink else 240.0
-                protein = 6.0 if is_drink else 18.0
-                carbs = 22.0 if is_drink else 24.0
-                fat = 5.0 if is_drink else 6.0
-                custom_item = {
-                    "name_es": title_name,
-                    "estimated_grams": grams,
-                    "confidence": 0.85,
-                    "kcal_per_100g": round((kcal / grams) * 100, 1),
-                    "protein_g_per_100g": round((protein / grams) * 100, 1),
-                    "carbs_g_per_100g": round((carbs / grams) * 100, 1),
-                    "fat_g_per_100g": round((fat / grams) * 100, 1),
-                    "fiber_g_per_100g": 1.0,
-                }
-                enriched = [_enrich_item_with_db(custom_item, db)]
+                profile = estimate_semantic_dish_profile(hint_clean)
+                enriched = [_enrich_item_with_db(it, db) for it in profile["items"]]
                 return {
-                    "model_version": "plato-manual-estimado",
-                    "dish_name": title_name,
+                    "model_version": "perfilador-semantico-gastronomico",
+                    "dish_name": profile["dish_name"],
                     "is_colombian_dish": True,
-                    "overall_confidence": 0.85,
+                    "overall_confidence": 0.86,
                     "error_message": None,
                     "items": enriched,
                 }
@@ -750,7 +1080,11 @@ def analyze_plate_photo(
 
     # CASO 2: Sin foto (el usuario seleccionó un plato predefinido o escribió el nombre)
     hint_lower = (user_hint or "").lower().strip()
-    if "chocolate" in hint_lower or "cacao" in hint_lower or "cocoa" in hint_lower:
+    if "minestrone" in hint_lower or "minestrong" in hint_lower:
+        preset = COLOMBIAN_PLATE_PRESETS["sopa_minestrone"]
+    elif "rollo" in hint_lower or "ciruela" in hint_lower:
+        preset = COLOMBIAN_PLATE_PRESETS["carne_en_rollo_ciruela"]
+    elif "chocolate" in hint_lower or "cacao" in hint_lower or "cocoa" in hint_lower:
         preset = COLOMBIAN_PLATE_PRESETS["pocillo_chocolate"]
     elif "cafe con leche" in hint_lower or "café con leche" in hint_lower or "perico" in hint_lower:
         preset = COLOMBIAN_PLATE_PRESETS["cafe_con_leche"]
@@ -781,29 +1115,13 @@ def analyze_plate_photo(
     elif "pollo" in hint_lower:
         preset = COLOMBIAN_PLATE_PRESETS["almuerzo_ejecutivo_pollo"]
     elif hint_lower:
-        title_name = hint_lower.capitalize()
-        is_drink = any(w in hint_lower for w in ["chocolate", "cafe", "café", "tinto", "pocillo", "taza", "jugo", "leche", "batido", "te", "té", "aromatica", "aromática"])
-        grams = 240.0 if is_drink else 180.0
-        kcal = 160.0 if is_drink else 240.0
-        protein = 6.0 if is_drink else 18.0
-        carbs = 22.0 if is_drink else 24.0
-        fat = 5.0 if is_drink else 6.0
-        custom_item = {
-            "name_es": title_name,
-            "estimated_grams": grams,
-            "confidence": 0.85,
-            "kcal_per_100g": round((kcal / grams) * 100, 1),
-            "protein_g_per_100g": round((protein / grams) * 100, 1),
-            "carbs_g_per_100g": round((carbs / grams) * 100, 1),
-            "fat_g_per_100g": round((fat / grams) * 100, 1),
-            "fiber_g_per_100g": 1.0,
-        }
-        enriched = [_enrich_item_with_db(custom_item, db)]
+        profile = estimate_semantic_dish_profile(hint_lower)
+        enriched = [_enrich_item_with_db(it, db) for it in profile["items"]]
         return {
-            "model_version": "plato-manual-estimado",
-            "dish_name": title_name,
+            "model_version": "perfilador-semantico-gastronomico",
+            "dish_name": profile["dish_name"],
             "is_colombian_dish": True,
-            "overall_confidence": 0.85,
+            "overall_confidence": 0.86,
             "error_message": None,
             "items": enriched,
         }
