@@ -5,8 +5,8 @@
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS competition_events (
-    id VARCHAR(36) PRIMARY KEY,
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(180) NOT NULL,
     event_type VARCHAR(40) NOT NULL DEFAULT 'HALF_MARATHON',
     event_date DATE NOT NULL,
@@ -22,7 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_competition_events_user_date
     ON competition_events(user_id, event_date);
 
 CREATE TABLE IF NOT EXISTS ml_retraining_runs (
-    id VARCHAR(36) PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     model_version_tag VARCHAR(60) NOT NULL,
     dataset_version_tag VARCHAR(60) NOT NULL,
     total_samples_evaluated INTEGER NOT NULL DEFAULT 0,
@@ -37,8 +37,8 @@ CREATE TABLE IF NOT EXISTS ml_retraining_runs (
 );
 
 CREATE TABLE IF NOT EXISTS medical_checkup_records (
-    id VARCHAR(36) PRIMARY KEY,
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     checkup_type VARCHAR(50) NOT NULL DEFAULT 'ANNUAL_BLOODWORK',
     completed_date DATE NOT NULL,
     next_due_date DATE NOT NULL,
@@ -54,8 +54,8 @@ CREATE TABLE IF NOT EXISTS medical_checkup_records (
 );
 
 CREATE TABLE IF NOT EXISTS weekly_meal_plans (
-    id VARCHAR(36) PRIMARY KEY,
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     week_start_date DATE NOT NULL,
     plan_name VARCHAR(160) NOT NULL,
     days_json JSONB NOT NULL DEFAULT '[]'::jsonb,
