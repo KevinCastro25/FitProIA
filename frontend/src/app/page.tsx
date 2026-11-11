@@ -43,6 +43,7 @@ import { calculateDynamicBudgetClient } from "@/lib/health-bridge";
 import { AUTH_ENABLED, signOut, API_BASE, getSupabase, installAuthFetch, getAuthHeaders } from "@/lib/supabase";
 import { CompetitionsAndRedsView } from "@/components/CompetitionsAndRedsView";
 import { CoachHealthExtrasView } from "@/components/CoachHealthExtrasView";
+import { DynamicCalorieRing } from "@/components/DynamicCalorieRing";
 
 type NavTab = "diario" | "comidas" | "entreno" | "progreso" | "coach" | "perfil";
 
@@ -809,16 +810,14 @@ export default function FitProIAPwaApp() {
               <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
                 {/* Anillo de Calorías y Desglose */}
                 <div className="md:col-span-5 flex items-center gap-4 rounded-2xl bg-slate-950/90 p-4 border border-slate-800/80">
-                  <div className="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-8 border-emerald-500/20">
-                    <div className="text-center">
-                      <span className="text-lg font-black text-white block leading-none">
-                        {remainingKcal >= 0 ? remainingKcal : 0}
-                      </span>
-                      <span className="text-[10px] font-semibold text-emerald-400">
-                        kcal libres
-                      </span>
-                    </div>
-                  </div>
+                  <DynamicCalorieRing
+                    consumedKcal={consumedKcal}
+                    budgetKcal={effectiveBudgetKcal}
+                    consumedProteinG={consumedProtein}
+                    consumedCarbsG={consumedCarbs}
+                    consumedFatG={consumedFat}
+                    size={108}
+                  />
                   <div className="space-y-1 text-xs flex-1">
                     <div className="flex justify-between">
                       <span className="text-slate-400">Meta base déficit:</span>
