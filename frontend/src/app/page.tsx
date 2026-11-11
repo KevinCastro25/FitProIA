@@ -45,6 +45,13 @@ import { CoachHealthExtrasView } from "@/components/CoachHealthExtrasView";
 
 type NavTab = "diario" | "comidas" | "entreno" | "progreso" | "coach" | "perfil";
 
+function sortKeys(o: unknown): unknown {
+  if (!o || typeof o !== "object") return o;
+  return Object.fromEntries(
+    Object.entries(o as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))
+  );
+}
+
 export default function FitProIAPwaApp() {
   const todayStr = new Date().toISOString().split("T")[0];
   const [activeTab, setActiveTab] = useState<NavTab>("diario");
@@ -88,9 +95,26 @@ export default function FitProIAPwaApp() {
 
   const targets = computeNutritionTargets(profile);
 
+  const lastLocalProfileEditRef = useRef<number>(0);
+
+  const clearPendingProfileMutations = async () => {
+    const q = await getOfflineOutbox();
+    for (const item of q) {
+      if (item.endpoint === "/profile") await clearOfflineMutation(item.mutationId);
+    }
+  };
+
   // Sincronización de Cola Offline IndexedDB -> Servidor FastAPI
   const flushOfflineOutbox = useCallback(async () => {
-    const queue = await getOfflineOutbox();
+    let queue = await getOfflineOutbox();
+    // Colapsar perfiles pendientes: conservar solo el más reciente (evita pisar con datos viejos)
+    const profItems = queue
+      .filter((i) => i.endpoint === "/profile")
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    if (profItems.length > 1) {
+      for (const old of profItems.slice(0, -1)) await clearOfflineMutation(old.mutationId);
+      queue = await getOfflineOutbox();
+    }
     setPendingOfflineCount(queue.length);
     if (queue.length === 0) return;
 
@@ -103,10 +127,13 @@ export default function FitProIAPwaApp() {
           body: JSON.stringify(item.payload),
           signal: AbortSignal.timeout(6000),
         });
-        if (res.ok) {
+        // Éxito o error de cliente permanente (400/404/409/422): sacar de la cola.
+        // Errores 5xx / 401 se reintentan luego.
+        if (res.ok || [400, 404, 409, 422].includes(res.status)) {
           await clearOfflineMutation(item.mutationId);
-        } else if (res.status === 400 || res.status === 422) {
-          await clearOfflineMutation(item.mutationId);
+          if (res.ok && item.endpoint === "/profile") {
+            lastLocalProfileEditRef.current = Date.now();
+          }
         }
       } catch {
         break;
@@ -141,8 +168,17 @@ export default function FitProIAPwaApp() {
 
       if (profRes.ok) {
         const data = await profRes.json();
-        if (data?.profile) {
-          setProfile(data.profile);
+        // No pisar el perfil local si hay cambios sin enviar o se editó hace poco (<45 s)
+        const pendingQ = await getOfflineOutbox();
+        const hasPendingProfile = pendingQ.some((i) => i.endpoint === "/profile");
+        const editedRecently = Date.now() - lastLocalProfileEditRef.current < 45000;
+        if (data?.profile && !hasPendingProfile && !editedRecently) {
+          // Solo actualizar estado si el contenido cambió de verdad (evita re-renders en bucle)
+          setProfile((prev) =>
+            JSON.stringify(sortKeys(prev)) === JSON.stringify(sortKeys(data.profile))
+              ? prev
+              : data.profile
+          );
           await idbSet("profile", data.profile);
         }
       }
@@ -477,6 +513,7 @@ export default function FitProIAPwaApp() {
   };
 
   const handleSaveProfile = async (newProf: UserProfileData) => {
+    lastLocalProfileEditRef.current = Date.now();
     setProfile(newProf);
     await idbSet("profile", newProf);
     try {
@@ -491,9 +528,14 @@ export default function FitProIAPwaApp() {
         const errText = await res.text().catch(() => "");
         throw new Error(`Error servidor: ${res.status} ${errText}`);
       }
+      // Guardado OK: descartar cualquier perfil pendiente viejo para que no pise al nuevo
+      await clearPendingProfileMutations();
+      lastLocalProfileEditRef.current = Date.now();
     } catch (err) {
+      // Mantener UN solo perfil pendiente (el más reciente), nunca acumular
+      await clearPendingProfileMutations();
       await enqueueOfflineMutation({
-        mutationId: `mut-prof-${Date.now()}`,
+        mutationId: "mut-prof-latest",
         endpoint: "/profile",
         method: "PUT",
         payload: newProf,
