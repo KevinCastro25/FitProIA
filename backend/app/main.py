@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -62,19 +62,35 @@ app.add_middleware(
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
+@app.get("/", tags=["Salud del Sistema"])
+@app.head("/", tags=["Salud del Sistema"])
+def root_check():
+    body = b'{"status":"ok"}'
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"Content-Length": str(len(body))},
+    )
+
+
 @app.get("/health", tags=["Salud del Sistema"])
 @app.head("/health", tags=["Salud del Sistema"])
 def health_check():
-    return {
-        "status": "ok",
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "pwa_ios_ready": True,
-    }
+    body = b'{"status":"ok","pwa_ios_ready":true}'
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"Content-Length": str(len(body))},
+    )
 
 
 @app.get("/ping", tags=["Salud del Sistema"])
 @app.head("/ping", tags=["Salud del Sistema"])
 def ping():
-    """Endpoint ultra liviano (4 bytes) para cronjobs anti-inactividad."""
-    return "pong"
+    """Endpoint ultra liviano (4 bytes) con Content-Length fijo para cron-job.org."""
+    body = b"pong"
+    return Response(
+        content=body,
+        media_type="text/plain",
+        headers={"Content-Length": str(len(body))},
+    )
