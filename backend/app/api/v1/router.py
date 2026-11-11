@@ -354,7 +354,7 @@ def search_foods(
     items = query.order_by(FoodItem.name_es.asc()).limit(60).all()
     return [
         FoodItemResponse(
-            id=f.id,
+            id=str(f.id),
             name_es=f.name_es,
             category=f.category,
             region=f.region,
@@ -389,7 +389,7 @@ def create_custom_food(
     db.commit()
     db.refresh(food)
     return FoodItemResponse(
-        id=food.id,
+        id=str(food.id),
         source=food.source,
         is_verified=food.is_verified,
         **payload.model_dump(),
@@ -406,7 +406,7 @@ def list_recipes(
     for r in recipes:
         result.append(
             RecipeResponse(
-                id=r.id,
+                id=str(r.id),
                 name=r.name,
                 servings=r.servings,
                 total_weight_g=r.total_weight_g,
@@ -452,7 +452,7 @@ def create_recipe(
     db.refresh(recipe)
 
     return RecipeResponse(
-        id=recipe.id,
+        id=str(recipe.id),
         name=recipe.name,
         servings=recipe.servings,
         total_weight_g=recipe.total_weight_g,
@@ -483,7 +483,7 @@ def get_meals_by_date(
     )
     return [
         MealLogResponse(
-            id=m.id,
+            id=str(m.id),
             log_date=m.log_date,
             meal_type=m.meal_type,
             food_item_id=m.food_item_id,
@@ -518,7 +518,7 @@ def log_meal(
         )
         if existing:
             return MealLogResponse(
-                id=existing.id,
+                id=str(existing.id),
                 log_date=existing.log_date,
                 meal_type=existing.meal_type,
                 food_item_id=existing.food_item_id,
@@ -540,7 +540,7 @@ def log_meal(
     db.commit()
     db.refresh(meal)
     return MealLogResponse(
-        id=meal.id,
+        id=str(meal.id),
         logged_at=meal.logged_at,
         **payload.model_dump(),
     )
@@ -585,7 +585,7 @@ def list_workouts(
     )
     return [
         WorkoutResponse(
-            id=w.id,
+            id=str(w.id),
             session_date=w.session_date,
             title=w.title,
             modality=w.modality,
@@ -650,7 +650,7 @@ def create_workout(
     db.refresh(workout)
 
     return WorkoutResponse(
-        id=workout.id,
+        id=str(workout.id),
         session_date=workout.session_date,
         title=workout.title,
         modality=workout.modality,
@@ -840,7 +840,7 @@ def list_body_checkins(
     )
     return [
         BodyCheckinResponse(
-            id=c.id,
+            id=str(c.id),
             checkin_date=c.checkin_date,
             weight_kg=c.weight_kg,
             trend_weight_kg=c.trend_weight_kg,
@@ -931,7 +931,7 @@ def create_body_checkin(
     db.refresh(checkin)
 
     return BodyCheckinResponse(
-        id=checkin.id,
+        id=str(checkin.id),
         checkin_date=checkin.checkin_date,
         weight_kg=checkin.weight_kg,
         trend_weight_kg=checkin.trend_weight_kg,
