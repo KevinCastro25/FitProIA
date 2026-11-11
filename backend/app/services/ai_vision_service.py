@@ -392,6 +392,84 @@ COLOMBIAN_PLATE_PRESETS = {
             },
         ],
     },
+    "pocillo_chocolate": {
+        "dish_name": "Pocillo de Chocolate Caliente Tradicional",
+        "is_colombian_dish": True,
+        "overall_confidence": 0.95,
+        "items": [
+            {
+                "name_es": "Chocolate caliente tradicional en leche",
+                "estimated_grams": 240.0,
+                "confidence": 0.95,
+                "kcal_per_100g": 78.0,
+                "protein_g_per_100g": 3.1,
+                "carbs_g_per_100g": 9.4,
+                "fat_g_per_100g": 3.0,
+                "fiber_g_per_100g": 0.8,
+            }
+        ],
+    },
+    "cafe_con_leche": {
+        "dish_name": "Pocillo de Café con Leche (Perico)",
+        "is_colombian_dish": True,
+        "overall_confidence": 0.94,
+        "items": [
+            {
+                "name_es": "Café con leche / Perico (1 pocillo 200ml)",
+                "estimated_grams": 200.0,
+                "confidence": 0.94,
+                "kcal_per_100g": 55.0,
+                "protein_g_per_100g": 3.1,
+                "carbs_g_per_100g": 4.8,
+                "fat_g_per_100g": 2.5,
+                "fiber_g_per_100g": 0.0,
+            }
+        ],
+    },
+    "tinto_cafe": {
+        "dish_name": "Pocillo de Tinto Colombiano (Café Negro)",
+        "is_colombian_dish": True,
+        "overall_confidence": 0.96,
+        "items": [
+            {
+                "name_es": "Café negro / Tinto colombiano (1 pocillo)",
+                "estimated_grams": 150.0,
+                "confidence": 0.96,
+                "kcal_per_100g": 3.0,
+                "protein_g_per_100g": 0.2,
+                "carbs_g_per_100g": 0.5,
+                "fat_g_per_100g": 0.05,
+                "fiber_g_per_100g": 0.0,
+            }
+        ],
+    },
+    "aguapanela_queso": {
+        "dish_name": "Agua de Panela Caliente con Queso Campesino",
+        "is_colombian_dish": True,
+        "overall_confidence": 0.92,
+        "items": [
+            {
+                "name_es": "Agua de panela tradicional (1 pocillo)",
+                "estimated_grams": 240.0,
+                "confidence": 0.93,
+                "kcal_per_100g": 52.0,
+                "protein_g_per_100g": 0.1,
+                "carbs_g_per_100g": 12.9,
+                "fat_g_per_100g": 0.0,
+                "fiber_g_per_100g": 0.0,
+            },
+            {
+                "name_es": "Queso campesino fresco",
+                "estimated_grams": 45.0,
+                "confidence": 0.90,
+                "kcal_per_100g": 240.0,
+                "protein_g_per_100g": 18.0,
+                "carbs_g_per_100g": 2.7,
+                "fat_g_per_100g": 17.8,
+                "fiber_g_per_100g": 0.0,
+            },
+        ],
+    },
 }
 
 
@@ -460,13 +538,8 @@ def analyze_plate_photo(
     """
     api_key = (settings.GEMINI_API_KEY or "").strip()
 
-    # Escalera de versiones de Gemini en orden de prioridad
+    # Escalera de versiones de Gemini en orden de prioridad real
     ladder = [
-        "gemini-3.8-flash",
-        "gemini-3.7-flash",
-        "gemini-3.6-flash",
-        "gemini-3.5-flash",
-        "gemini-3.0-flash",
         "gemini-2.5-flash",
         "gemini-2.0-flash",
         "gemini-1.5-flash",
@@ -490,7 +563,15 @@ def analyze_plate_photo(
         hint_lower = hint_clean.lower()
 
         if not api_key or api_key in ("tu-google-gemini-api-key", "your-api-key"):
-            if "almuerzo" in hint_lower or "ejecutivo" in hint_lower:
+            if "chocolate" in hint_lower or "cacao" in hint_lower or "cocoa" in hint_lower:
+                preset = COLOMBIAN_PLATE_PRESETS["pocillo_chocolate"]
+            elif "cafe con leche" in hint_lower or "café con leche" in hint_lower or "perico" in hint_lower:
+                preset = COLOMBIAN_PLATE_PRESETS["cafe_con_leche"]
+            elif "tinto" in hint_lower or "cafe" in hint_lower or "café" in hint_lower:
+                preset = COLOMBIAN_PLATE_PRESETS["tinto_cafe"]
+            elif "aguapanela" in hint_lower or "panela" in hint_lower:
+                preset = COLOMBIAN_PLATE_PRESETS["aguapanela_queso"]
+            elif "almuerzo" in hint_lower or "ejecutivo" in hint_lower:
                 preset = COLOMBIAN_PLATE_PRESETS["almuerzo_ejecutivo_pollo"]
             elif "bandeja" in hint_lower or "paisa" in hint_lower:
                 preset = COLOMBIAN_PLATE_PRESETS["bandeja_paisa"]
@@ -508,12 +589,37 @@ def analyze_plate_photo(
                 preset = COLOMBIAN_PLATE_PRESETS["sancocho_pollo"]
             elif "ajiaco" in hint_lower or "sopa" in hint_lower:
                 preset = COLOMBIAN_PLATE_PRESETS["ajiaco_santafereno"]
-            elif "desayuno" in hint_lower or "arepa" in hint_lower or "huevo" in hint_lower or "perico" in hint_lower:
+            elif "desayuno" in hint_lower or "arepa" in hint_lower or "huevo" in hint_lower:
                 preset = COLOMBIAN_PLATE_PRESETS["desayuno_arepa_pericos"]
             elif "pollo" in hint_lower:
                 preset = COLOMBIAN_PLATE_PRESETS["almuerzo_ejecutivo_pollo"]
-            elif hint_lower:
-                preset = COLOMBIAN_PLATE_PRESETS["almuerzo_ejecutivo_pollo"]
+            elif hint_clean:
+                title_name = hint_clean.capitalize()
+                is_drink = any(w in hint_lower for w in ["chocolate", "cafe", "café", "tinto", "pocillo", "taza", "jugo", "leche", "batido", "te", "té", "aromatica", "aromática"])
+                grams = 240.0 if is_drink else 180.0
+                kcal = 160.0 if is_drink else 240.0
+                protein = 6.0 if is_drink else 18.0
+                carbs = 22.0 if is_drink else 24.0
+                fat = 5.0 if is_drink else 6.0
+                custom_item = {
+                    "name_es": title_name,
+                    "estimated_grams": grams,
+                    "confidence": 0.85,
+                    "kcal_per_100g": round((kcal / grams) * 100, 1),
+                    "protein_g_per_100g": round((protein / grams) * 100, 1),
+                    "carbs_g_per_100g": round((carbs / grams) * 100, 1),
+                    "fat_g_per_100g": round((fat / grams) * 100, 1),
+                    "fiber_g_per_100g": 1.0,
+                }
+                enriched = [_enrich_item_with_db(custom_item, db)]
+                return {
+                    "model_version": "plato-manual-estimado",
+                    "dish_name": title_name,
+                    "is_colombian_dish": True,
+                    "overall_confidence": 0.85,
+                    "error_message": None,
+                    "items": enriched,
+                }
             else:
                 preset = COLOMBIAN_PLATE_PRESETS["almuerzo_ejecutivo_pollo"]
 
@@ -644,7 +750,15 @@ def analyze_plate_photo(
 
     # CASO 2: Sin foto (el usuario seleccionó un plato predefinido o escribió el nombre)
     hint_lower = (user_hint or "").lower().strip()
-    if "almuerzo" in hint_lower or "ejecutivo" in hint_lower:
+    if "chocolate" in hint_lower or "cacao" in hint_lower or "cocoa" in hint_lower:
+        preset = COLOMBIAN_PLATE_PRESETS["pocillo_chocolate"]
+    elif "cafe con leche" in hint_lower or "café con leche" in hint_lower or "perico" in hint_lower:
+        preset = COLOMBIAN_PLATE_PRESETS["cafe_con_leche"]
+    elif "tinto" in hint_lower or "cafe" in hint_lower or "café" in hint_lower:
+        preset = COLOMBIAN_PLATE_PRESETS["tinto_cafe"]
+    elif "aguapanela" in hint_lower or "panela" in hint_lower:
+        preset = COLOMBIAN_PLATE_PRESETS["aguapanela_queso"]
+    elif "almuerzo" in hint_lower or "ejecutivo" in hint_lower:
         preset = COLOMBIAN_PLATE_PRESETS["almuerzo_ejecutivo_pollo"]
     elif "bandeja" in hint_lower or "paisa" in hint_lower:
         preset = COLOMBIAN_PLATE_PRESETS["bandeja_paisa"]
@@ -662,12 +776,37 @@ def analyze_plate_photo(
         preset = COLOMBIAN_PLATE_PRESETS["sancocho_pollo"]
     elif "ajiaco" in hint_lower or "sopa" in hint_lower:
         preset = COLOMBIAN_PLATE_PRESETS["ajiaco_santafereno"]
-    elif "desayuno" in hint_lower or "arepa" in hint_lower or "huevo" in hint_lower or "perico" in hint_lower:
+    elif "desayuno" in hint_lower or "arepa" in hint_lower or "huevo" in hint_lower:
         preset = COLOMBIAN_PLATE_PRESETS["desayuno_arepa_pericos"]
     elif "pollo" in hint_lower:
         preset = COLOMBIAN_PLATE_PRESETS["almuerzo_ejecutivo_pollo"]
     elif hint_lower:
-        preset = COLOMBIAN_PLATE_PRESETS["almuerzo_ejecutivo_pollo"]
+        title_name = hint_lower.capitalize()
+        is_drink = any(w in hint_lower for w in ["chocolate", "cafe", "café", "tinto", "pocillo", "taza", "jugo", "leche", "batido", "te", "té", "aromatica", "aromática"])
+        grams = 240.0 if is_drink else 180.0
+        kcal = 160.0 if is_drink else 240.0
+        protein = 6.0 if is_drink else 18.0
+        carbs = 22.0 if is_drink else 24.0
+        fat = 5.0 if is_drink else 6.0
+        custom_item = {
+            "name_es": title_name,
+            "estimated_grams": grams,
+            "confidence": 0.85,
+            "kcal_per_100g": round((kcal / grams) * 100, 1),
+            "protein_g_per_100g": round((protein / grams) * 100, 1),
+            "carbs_g_per_100g": round((carbs / grams) * 100, 1),
+            "fat_g_per_100g": round((fat / grams) * 100, 1),
+            "fiber_g_per_100g": 1.0,
+        }
+        enriched = [_enrich_item_with_db(custom_item, db)]
+        return {
+            "model_version": "plato-manual-estimado",
+            "dish_name": title_name,
+            "is_colombian_dish": True,
+            "overall_confidence": 0.85,
+            "error_message": None,
+            "items": enriched,
+        }
     else:
         preset = COLOMBIAN_PLATE_PRESETS["almuerzo_ejecutivo_pollo"]
 

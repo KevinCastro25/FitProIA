@@ -212,8 +212,17 @@ export default function FitProIAPwaApp() {
       if (mealsRes.ok) {
         const data = await mealsRes.json();
         if (Array.isArray(data)) {
-          setMeals(data);
-          await idbSet("meals", data);
+          // Fusionar preservando comidas locales recientes que aún se están sincronizando
+          setMeals((prev) => {
+            const serverIds = new Set(data.map((m: any) => m.id));
+            const serverKeys = new Set(data.map((m: any) => `${m.log_date}_${m.custom_food_name}_${m.kcal}`));
+            const unsynced = prev.filter(
+              (p) => !serverIds.has(p.id) && !serverKeys.has(`${p.log_date}_${p.custom_food_name}_${p.kcal}`) && p.client_mutation_id
+            );
+            const merged = [...data, ...unsynced];
+            idbSet("meals", merged);
+            return merged;
+          });
         }
       }
       if (workRes.ok) {
@@ -447,7 +456,7 @@ export default function FitProIAPwaApp() {
 
   const handleLogMultipleMeals = async (newMealsList: Omit<MealLogItem, "id">[]) => {
     const createdItems: MealLogItem[] = newMealsList.map((m, idx) => {
-      const mutId = `mut-ai-${Date.now()}-${idx}`;
+      const mutId = `mut-ai-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`;
       return {
         ...m,
         id: mutId,
@@ -457,6 +466,35 @@ export default function FitProIAPwaApp() {
     const updated = [...meals, ...createdItems];
     setMeals(updated);
     await idbSet("meals", updated);
+
+    // Enviar cada plato al servidor para que persista en PostgreSQL y entre dispositivos
+    try {
+      const authH = await getAuthHeaders();
+      await Promise.all(
+        createdItems.map(async (item) => {
+          try {
+            const res = await fetch(`${API_BASE}/meals`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...authH },
+              body: JSON.stringify(item),
+            });
+            if (!res.ok) throw new Error("Failed server save");
+          } catch {
+            await enqueueOfflineMutation({
+              mutationId: item.client_mutation_id || item.id,
+              endpoint: "/meals",
+              method: "POST",
+              payload: item,
+              createdAt: new Date().toISOString(),
+            });
+          }
+        })
+      );
+      const q = await getOfflineOutbox();
+      setPendingOfflineCount(q.length);
+    } catch {
+      // IndexedDB ya los guardó localmente
+    }
   };
 
   const handleDeleteMeal = async (id: string) => {

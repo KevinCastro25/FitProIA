@@ -157,7 +157,7 @@ export function PhotoPlateAnalyzer({
     try {
       const authHeaders = await getAuthHeaders();
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
 
       const res = await fetch(`${apiBase}/ai-vision/analyze-plate`, {
         method: "POST",
@@ -405,39 +405,10 @@ export function PhotoPlateAnalyzer({
 
               <div>
                 <label
-                  htmlFor="ref-object-select"
-                  className="block text-xs font-semibold text-slate-300 mb-1"
-                >
-                  Objeto de referencia visual en la mesa:
-                </label>
-                <select
-                  id="ref-object-select"
-                  name="reference_object"
-                  value={referenceObject}
-                  onChange={(e) =>
-                    setReferenceObject(
-                      e.target.value as
-                        | "PLATE_26CM"
-                        | "HAND"
-                        | "CUTLERY"
-                        | "NONE"
-                    )
-                  }
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
-                >
-                  <option value="PLATE_26CM">Plato estándar (~26 cm)</option>
-                  <option value="HAND">Mano / Puño al lado del plato</option>
-                  <option value="CUTLERY">Cubierto estándar (~20 cm)</option>
-                  <option value="NONE">Sin referencia</option>
-                </select>
-              </div>
-
-              <div>
-                <label
                   htmlFor="dish-hint-input"
                   className="block text-xs font-semibold text-slate-300 mb-1"
                 >
-                  ¿Qué comida es? (Escribe el nombre del plato para afinar la receta):
+                  ¿Qué comida o bebida es? (Escribe el nombre para afinar la receta):
                 </label>
                 <input
                   id="dish-hint-input"
@@ -445,8 +416,8 @@ export function PhotoPlateAnalyzer({
                   type="text"
                   value={userHint}
                   onChange={(e) => setUserHint(e.target.value)}
-                  placeholder="Ej: Arroz con pollo, Carne asada, Avena con banano..."
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
+                  placeholder="Ej: Pocillo de chocolate, Café con leche, Arroz con pollo, Carne asada..."
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
 

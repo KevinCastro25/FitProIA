@@ -20,6 +20,125 @@ export interface StandardDishPreset {
 
 export const COMPREHENSIVE_DISH_PRESETS: StandardDishPreset[] = [
   {
+    id: "pocillo_chocolate",
+    label: "☕ Pocillo de Chocolate Caliente",
+    category: "Desayuno",
+    dish_name: "Pocillo de Chocolate Caliente Tradicional",
+    is_colombian_dish: true,
+    overall_confidence: 0.95,
+    keywords: ["chocolate", "pocillo de chocolate", "taza de chocolate", "chocolate caliente", "chocolate en leche", "chocolate con leche", "cacao", "cocoa", "chocolatada", "corona"],
+    items: [
+      {
+        name_es: "Chocolate caliente tradicional en leche",
+        estimated_grams: 240,
+        confidence: 0.95,
+        kcal: 188,
+        protein_g: 7.4,
+        carbs_g: 22.5,
+        fat_g: 7.2,
+        fiber_g: 1.8,
+        kcal_per_100g: 78,
+        protein_g_per_100g: 3.1,
+        carbs_g_per_100g: 9.4,
+        fat_g_per_100g: 3.0,
+        fiber_g_per_100g: 0.8,
+      },
+    ],
+  },
+  {
+    id: "cafe_con_leche",
+    label: "☕ Café con Leche / Perico",
+    category: "Desayuno",
+    dish_name: "Pocillo de Café con Leche (Perico)",
+    is_colombian_dish: true,
+    overall_confidence: 0.94,
+    keywords: ["cafe con leche", "café con leche", "perico", "pintado", "taza de cafe con leche", "pocillo de cafe con leche", "cafe en leche"],
+    items: [
+      {
+        name_es: "Café con leche / Perico (1 pocillo)",
+        estimated_grams: 200,
+        confidence: 0.94,
+        kcal: 110,
+        protein_g: 6.2,
+        carbs_g: 9.6,
+        fat_g: 5.0,
+        fiber_g: 0,
+        kcal_per_100g: 55,
+        protein_g_per_100g: 3.1,
+        carbs_g_per_100g: 4.8,
+        fat_g_per_100g: 2.5,
+        fiber_g_per_100g: 0,
+      },
+    ],
+  },
+  {
+    id: "tinto_cafe_negro",
+    label: "☕ Tinto Colombiano (Café Negro)",
+    category: "Desayuno",
+    dish_name: "Pocillo de Tinto / Café Negro",
+    is_colombian_dish: true,
+    overall_confidence: 0.96,
+    keywords: ["tinto", "cafe", "café", "cafe negro", "café negro", "pocillo de tinto", "taza de cafe", "taza de café", "americano"],
+    items: [
+      {
+        name_es: "Café negro / Tinto tradicional (1 pocillo)",
+        estimated_grams: 150,
+        confidence: 0.96,
+        kcal: 5,
+        protein_g: 0.3,
+        carbs_g: 0.8,
+        fat_g: 0.1,
+        fiber_g: 0,
+        kcal_per_100g: 3,
+        protein_g_per_100g: 0.2,
+        carbs_g_per_100g: 0.5,
+        fat_g_per_100g: 0.05,
+        fiber_g_per_100g: 0,
+      },
+    ],
+  },
+  {
+    id: "aguapanela_queso",
+    label: "🧀 Aguapanela con Queso",
+    category: "Desayuno",
+    dish_name: "Agua de Panela Caliente con Queso Campesino",
+    is_colombian_dish: true,
+    overall_confidence: 0.92,
+    keywords: ["aguapanela", "agua de panela", "aguapanela con queso", "agua de panela con queso", "panela"],
+    items: [
+      {
+        name_es: "Agua de panela tradicional (1 pocillo)",
+        estimated_grams: 240,
+        confidence: 0.93,
+        kcal: 125,
+        protein_g: 0.2,
+        carbs_g: 31.0,
+        fat_g: 0.0,
+        fiber_g: 0,
+        kcal_per_100g: 52,
+        protein_g_per_100g: 0.1,
+        carbs_g_per_100g: 12.9,
+        fat_g_per_100g: 0.0,
+        fiber_g_per_100g: 0,
+      },
+      {
+        name_es: "Queso campesino fresco",
+        estimated_grams: 45,
+        confidence: 0.90,
+        kcal: 108,
+        protein_g: 8.1,
+        carbs_g: 1.2,
+        fat_g: 8.0,
+        fiber_g: 0,
+        kcal_per_100g: 240,
+        protein_g_per_100g: 18.0,
+        carbs_g_per_100g: 2.7,
+        fat_g_per_100g: 17.8,
+        fiber_g_per_100g: 0,
+      },
+    ],
+  },
+  {
     id: "arroz_con_pollo",
     label: "🍗 Arroz con Pollo Colombiano",
     category: "Almuerzo/Cena",
@@ -1235,40 +1354,48 @@ export function resolveDishRecipe(
 
   // 3. Fallback inteligente: si no se encontró coincidencia exacta pero el usuario escribió algo
   if (queryClean.length > 0) {
-    // Tomar un alimento base del catálogo o porción estimada
-    const defaultFood = localCatalog[0];
     const defaultName = dishQuery.trim();
+    const titleCaseName = defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
+
+    // Detectar si el texto refiere a una bebida / infusión o comida sólida
+    const isDrink = /chocolate|cacao|cocoa|cafe|café|tinto|pocillo|taza|vaso|jugo|batido|leche|te|té|aromatica|aromática|infusion|infusión|panela/i.test(defaultName);
+    const estimatedGrams = isDrink ? 240 : 180;
+    const estimatedKcal = isDrink ? 160 : 250;
+    const estimatedP = isDrink ? 6.0 : 18.0;
+    const estimatedC = isDrink ? 22.0 : 26.0;
+    const estimatedF = isDrink ? 5.0 : 7.0;
+
     return {
       prediction_id: `custom-dish-${Date.now()}`,
       model_version: "plato-manual-estimado",
-      dish_name: defaultName.charAt(0).toUpperCase() + defaultName.slice(1),
+      dish_name: titleCaseName,
       reference_object: refObj,
-      overall_confidence: 0.75,
+      overall_confidence: 0.85,
       is_colombian_dish: true,
       flagged_for_review: false,
       items: [
         {
-          name_es: defaultFood ? `${defaultFood.name_es} (${defaultName})` : defaultName,
-          estimated_grams: 180,
-          confidence: 0.8,
-          kcal: defaultFood ? Math.round(defaultFood.kcal_per_100g * 1.8) : 250,
-          protein_g: defaultFood ? Number((defaultFood.protein_g_per_100g * 1.8).toFixed(1)) : 22.0,
-          carbs_g: defaultFood ? Number((defaultFood.carbs_g_per_100g * 1.8).toFixed(1)) : 25.0,
-          fat_g: defaultFood ? Number((defaultFood.fat_g_per_100g * 1.8).toFixed(1)) : 6.0,
-          fiber_g: defaultFood ? Number((defaultFood.fiber_g_per_100g * 1.8).toFixed(1)) : 2.0,
-          kcal_per_100g: defaultFood ? defaultFood.kcal_per_100g : 140,
-          protein_g_per_100g: defaultFood ? defaultFood.protein_g_per_100g : 12.0,
-          carbs_g_per_100g: defaultFood ? defaultFood.carbs_g_per_100g : 14.0,
-          fat_g_per_100g: defaultFood ? defaultFood.fat_g_per_100g : 3.5,
-          fiber_g_per_100g: defaultFood ? defaultFood.fiber_g_per_100g : 1.1,
+          name_es: titleCaseName,
+          estimated_grams: estimatedGrams,
+          confidence: 0.85,
+          kcal: estimatedKcal,
+          protein_g: estimatedP,
+          carbs_g: estimatedC,
+          fat_g: estimatedF,
+          fiber_g: 1.0,
+          kcal_per_100g: Math.round((estimatedKcal / estimatedGrams) * 100),
+          protein_g_per_100g: Number(((estimatedP / estimatedGrams) * 100).toFixed(1)),
+          carbs_g_per_100g: Number(((estimatedC / estimatedGrams) * 100).toFixed(1)),
+          fat_g_per_100g: Number(((estimatedF / estimatedGrams) * 100).toFixed(1)),
+          fiber_g_per_100g: 0.5,
         },
       ],
-      total_kcal: defaultFood ? Math.round(defaultFood.kcal_per_100g * 1.8) : 250,
-      total_protein_g: defaultFood ? Number((defaultFood.protein_g_per_100g * 1.8).toFixed(1)) : 22.0,
-      total_carbs_g: defaultFood ? Number((defaultFood.carbs_g_per_100g * 1.8).toFixed(1)) : 25.0,
-      total_fat_g: defaultFood ? Number((defaultFood.fat_g_per_100g * 1.8).toFixed(1)) : 6.0,
-      total_fiber_g: defaultFood ? Number((defaultFood.fiber_g_per_100g * 1.8).toFixed(1)) : 2.0,
-      disclaimer: "Plato estimado con porción estándar (180g). Puedes editar los gramos o añadir más ingredientes.",
+      total_kcal: estimatedKcal,
+      total_protein_g: estimatedP,
+      total_carbs_g: estimatedC,
+      total_fat_g: estimatedF,
+      total_fiber_g: 1.0,
+      disclaimer: `Plato estimado con porción estándar (${estimatedGrams}g). Puedes ajustar los gramos con total libertad.`,
       error_message: null,
     };
   }
