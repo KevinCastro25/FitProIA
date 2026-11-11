@@ -17,6 +17,8 @@ import {
   Plus,
   Trophy,
   Ruler,
+  Moon,
+  Heart,
 } from "lucide-react";
 import {
   INITIAL_COLOMBIAN_FOODS,
@@ -1030,8 +1032,8 @@ export default function FitProIAPwaApp() {
               )}
             </section>
 
-            {/* Controles Rápidos a Una Mano: Hidratación, Pasos y Resumen de Composición */}
-            <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Controles Rápidos a Una Mano: Hidratación, Pasos, Sueño y Resumen de Composición */}
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Hidratación */}
               <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4 flex flex-col justify-between">
                 <div className="flex items-center justify-between">
@@ -1058,16 +1060,16 @@ export default function FitProIAPwaApp() {
                   <button
                     type="button"
                     onClick={() => handleUpdateDailyMetrics({ water_ml: waterMl + 250 })}
-                    className="flex-1 rounded-xl bg-sky-500/15 border border-sky-500/30 py-2 text-xs font-bold text-sky-300 hover:bg-sky-500/25"
+                    className="flex-1 rounded-xl bg-sky-500/15 border border-sky-500/30 py-2 text-xs font-bold text-sky-300 hover:bg-sky-500/25 transition"
                   >
                     +250 ml (Vaso)
                   </button>
                   <button
                     type="button"
                     onClick={() => handleUpdateDailyMetrics({ water_ml: waterMl + 500 })}
-                    className="flex-1 rounded-xl bg-sky-500/15 border border-sky-500/30 py-2 text-xs font-bold text-sky-300 hover:bg-sky-500/25"
+                    className="flex-1 rounded-xl bg-sky-500/15 border border-sky-500/30 py-2 text-xs font-bold text-sky-300 hover:bg-sky-500/25 transition"
                   >
-                    +500 ml (Caramañola)
+                    +500 ml
                   </button>
                 </div>
               </div>
@@ -1099,16 +1101,78 @@ export default function FitProIAPwaApp() {
                   <button
                     type="button"
                     onClick={() => handleUpdateDailyMetrics({ steps_count: stepsCount + 1000 })}
-                    className="flex-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25"
+                    className="flex-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 transition"
                   >
                     +1,000 pasos
                   </button>
                   <button
                     type="button"
                     onClick={() => handleUpdateDailyMetrics({ steps_count: stepsCount + 2500 })}
-                    className="flex-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25"
+                    className="flex-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 transition"
                   >
-                    +2,500 pasos
+                    +2,500
+                  </button>
+                </div>
+              </div>
+
+              {/* Sueño & Recuperación */}
+              <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4 flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Moon className="h-5 w-5 text-indigo-400" />
+                    <h3 className="text-sm font-bold text-white">Sueño</h3>
+                  </div>
+                  <span className="text-xs font-bold text-indigo-400">
+                    {sleepHours.toFixed(1)} / 8.0 h
+                  </span>
+                </div>
+                <div className="my-2 space-y-1">
+                  <div className="h-2.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        sleepHours >= 7.5 ? 'bg-indigo-400' : sleepHours >= 6.5 ? 'bg-cyan-400' : 'bg-rose-400'
+                      }`}
+                      style={{
+                        width: `${Math.min(100, Math.round((sleepHours / 8.0) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <Heart className="h-3 w-3 text-rose-400" />
+                      FC: <strong className="text-white">{restingHrBpm} ppm</strong>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("entreno")}
+                      className="text-cyan-400 hover:underline font-semibold"
+                    >
+                      Ver Gráfica →
+                    </button>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleUpdateDailyMetrics({
+                        sleep_hours: Math.max(0, Number((sleepHours - 0.5).toFixed(1))),
+                      })
+                    }
+                    className="flex-1 rounded-xl bg-indigo-500/15 border border-indigo-500/30 py-2 text-xs font-bold text-indigo-300 hover:bg-indigo-500/25 transition"
+                  >
+                    -0.5 h
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleUpdateDailyMetrics({
+                        sleep_hours: Math.min(24, Number((sleepHours + 0.5).toFixed(1))),
+                      })
+                    }
+                    className="flex-1 rounded-xl bg-indigo-500/15 border border-indigo-500/30 py-2 text-xs font-bold text-indigo-300 hover:bg-indigo-500/25 transition"
+                  >
+                    +0.5 h
                   </button>
                 </div>
               </div>
