@@ -1,580 +1,400 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import {
   Activity,
-  HeartPulse,
-  ShieldAlert,
+  AlertTriangle,
+  ArrowDownCircle,
+  ArrowUpCircle,
   CheckCircle2,
-  Upload,
-  Smartphone,
+  Dumbbell,
+  Heart,
+  Moon,
   RefreshCw,
-  Copy,
-  Check,
-  Cpu,
-} from "lucide-react";
-import { WorkoutSessionItem } from "@/lib/fitproia-store";
+  Sparkles,
+} from 'lucide-react';
+import type { WorkoutSessionItem } from '@/lib/fitproia-store';
 import {
   calculateRecoveryAndDeloadClient,
-  getHealthBridgeCapabilities,
-} from "@/lib/health-bridge";
+  type RecoveryAndDeloadReport,
+} from '@/lib/health-bridge';
 
 interface IntegrationsAndDeloadViewProps {
-  apiBase: string;
-  workouts: WorkoutSessionItem[];
-  sleepHours: number;
-  restingHrBpm: number;
-  hrvMs: number;
-  onUpdateRecoveryMarkers: (
-    sleep: number,
-    rhr: number,
-    hrv: number,
-    stepsBonus?: number
-  ) => void;
-  onImportWorkout: (workout: Omit<WorkoutSessionItem, "id">) => void;
+  recentWorkouts?: WorkoutSessionItem[];
+  workouts?: WorkoutSessionItem[];
+  recoveryStatus?: RecoveryAndDeloadReport | null;
+  sleepHours?: number;
+  restingHrBpm?: number;
+  hrvMs?: number;
+  apiBase?: string;
+  onUpdateRecoveryMarkers: (sleepHours: number, restingHr: number, hrvMs: number, stepsBonus?: number) => Promise<void> | void;
+  onImportWorkout?: (workout: any) => void;
 }
 
 export function IntegrationsAndDeloadView({
-  apiBase,
+  recentWorkouts,
   workouts,
+  recoveryStatus,
   sleepHours,
   restingHrBpm,
   hrvMs,
   onUpdateRecoveryMarkers,
-  onImportWorkout,
 }: IntegrationsAndDeloadViewProps) {
-  const [syncToast, setSyncToast] = useState<string | null>(null);
-  const [copiedShortcut, setCopiedShortcut] = useState(false);
-  const [connectedProviders, setConnectedProviders] = useState<
-    Record<string, number>
-  >({
-    STRAVA: 14,
-    GARMIN: 8,
-    IOS_SHORTCUT: 21,
-    OURA_WHOOP: 0,
-  });
+  const activeWorkouts = workouts || recentWorkouts || [];
 
-  const bridgeInfo = getHealthBridgeCapabilities();
-  const report = calculateRecoveryAndDeloadClient(
-    workouts,
-    sleepHours,
-    restingHrBpm,
-    hrvMs
+  // Use client calculation as primary/fallback based on recent workouts
+  const clientStatus = calculateRecoveryAndDeloadClient(
+    activeWorkouts,
+    recoveryStatus?.autonomic_recovery.sleep_hours ?? sleepHours ?? 7.5,
+    recoveryStatus?.autonomic_recovery.resting_hr_bpm ?? restingHrBpm ?? 56
   );
 
-  const showNotice = (msg: string) => {
-    setSyncToast(msg);
-    setTimeout(() => setSyncToast(null), 3500);
-  };
+  const report = recoveryStatus || clientStatus;
+  const split = report.muscle_split_7d;
 
-  // Sincronización con Strava / Garmin / Oura vía OAuth API
-  const handleSyncProvider = async (provider: string) => {
+  // Dedicated text inputs for Sleep and Resting Heart Rate
+  const [sleepInput, setSleepInput] = useState<string>(
+    String(sleepHours ?? report.autonomic_recovery.sleep_hours ?? 7.5)
+  );
+  const [restingHrInput, setRestingHrInput] = useState<string>(
+    String(restingHrBpm ?? report.autonomic_recovery.resting_hr_bpm ?? 56)
+  );
+  const [savingMarkers, setSavingMarkers] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const handleSaveMarkers = async () => {
+    const sleep = parseFloat(sleepInput);
+    const hr = parseInt(restingHrInput, 10);
+    if (isNaN(sleep) || sleep <= 0 || sleep > 24) return;
+    if (isNaN(hr) || hr < 30 || hr > 220) return;
+
+    setSavingMarkers(true);
+    setSaveSuccess(false);
     try {
-      await fetch(`${apiBase}/integrations/oauth/${provider}/sync`, {
-        method: "POST",
-      });
-    } catch {}
-
-    setConnectedProviders((prev) => ({
-      ...prev,
-      [provider]: (prev[provider] || 0) + 1,
-    }));
-
-    const today = new Date().toISOString().split("T")[0];
-    if (provider === "STRAVA" || provider === "GARMIN") {
-      onImportWorkout({
-        session_date: today,
-        title:
-          provider === "STRAVA"
-            ? "Strava Sync: Fondo Aeróbico 12K Zona 2"
-            : "Garmin Connect: Series Umbral 6×800m + VFC",
-        modality: "RUNNING",
-        duration_minutes: 54,
-        session_rpe: 8,
-        internal_load_au: 432,
-        estimated_kcal_burned: 625,
-        distance_km: 11.4,
-        avg_pace_sec_per_km: 284,
-        avg_hr_bpm: 158,
-        elevation_gain_m: 85,
-        strength_sets: [],
-        notes: `Importado automáticamente vía OAuth (${provider})`,
-      });
-      showNotice(
-        `Sincronizado con ${provider}: +11.4 km de running (625 kcal) añadidos a tu presupuesto dinámico.`
-      );
-    } else {
-      onUpdateRecoveryMarkers(8.1, 50, 78, 11200);
-      showNotice(
-        `Sincronizado con ${provider}: Sueño (8.1h), FC Reposo (50 ppm) y VFC (78 ms) actualizados.`
-      );
+      await onUpdateRecoveryMarkers(sleep, hr, hrvMs ?? 68);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } finally {
+      setSavingMarkers(false);
     }
   };
 
-  // Simulación o ejecución en vivo del Atajo de iOS (Apple Health)
-  const handleTriggerIosShortcutSync = async () => {
-    const payload = {
-      steps_count: 13250,
-      active_kcal: 590,
-      sleep_hours: 7.9,
-      resting_hr_bpm: 51,
-      hrv_ms: 75.0,
-      workout_title: "Atajo de iOS (Apple Health): Carrera Matutina 9.5K",
-      workout_modality: "RUNNING" as const,
-      workout_duration_min: 47,
-      workout_distance_km: 9.5,
-    };
-    try {
-      await fetch(`${apiBase}/integrations/ios-shortcut`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } catch {}
+  const isDeload = report.recommendation.deload_type !== 'RECUPERACION_OPTIMA';
 
-    onUpdateRecoveryMarkers(
-      payload.sleep_hours,
-      payload.resting_hr_bpm,
-      payload.hrv_ms,
-      payload.steps_count
-    );
-    onImportWorkout({
-      session_date: new Date().toISOString().split("T")[0],
-      title: payload.workout_title,
-      modality: "RUNNING",
-      duration_minutes: payload.workout_duration_min,
-      session_rpe: 7,
-      internal_load_au: payload.workout_duration_min * 7,
-      estimated_kcal_burned: payload.active_kcal,
-      distance_km: payload.workout_distance_km,
-      avg_pace_sec_per_km: 296,
-      avg_hr_bpm: 152,
-      elevation_gain_m: 40,
-      strength_sets: [],
-      notes: "Recibido desde Atajo de iOS (Apple Health).",
-    });
-    showNotice(
-      "¡Atajo de iOS procesado! Pasos (13,250), VFC (75 ms), Sueño (7.9h) y Carrera sincronizados desde Apple Health."
-    );
+  const getStatusColor = () => {
+    switch (report.recommendation.urgency) {
+      case 'ALTA':
+        return 'text-rose-400 bg-rose-500/10 border-rose-500/30';
+      case 'MEDIA':
+        return 'text-amber-400 bg-amber-500/10 border-amber-500/30';
+      case 'BAJA':
+      default:
+        return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
+    }
   };
-
-  // Importación de archivos (.gpx, .tcx, .fit, .csv, Apple Health .xml)
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const text = await file.text();
-    let importedTitle = `Archivo Importado (${file.name})`;
-    let distKm = 9.2;
-    let durMin = 46;
-    let kcal = 580;
-
-    try {
-      const res = await fetch(`${apiBase}/integrations/import-file`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filename: file.name,
-          content_text: text.slice(0, 50000),
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const p = data.parsed_summary;
-        importedTitle = p.title;
-        distKm = p.distance_km;
-        durMin = p.duration_minutes;
-        kcal = p.estimated_kcal_burned;
-      }
-    } catch {}
-
-    onImportWorkout({
-      session_date: new Date().toISOString().split("T")[0],
-      title: importedTitle,
-      modality: file.name.toLowerCase().endsWith(".fit") ? "HYROX" : "RUNNING",
-      duration_minutes: durMin,
-      session_rpe: 8,
-      internal_load_au: durMin * 8,
-      estimated_kcal_burned: kcal,
-      distance_km: distKm,
-      avg_pace_sec_per_km: Math.round((durMin * 60) / Math.max(1, distKm)),
-      avg_hr_bpm: 160,
-      elevation_gain_m: 70,
-      strength_sets: [],
-      notes: `Archivo deportivo procesado: ${file.name}`,
-    });
-    showNotice(`Archivo ${file.name} importado: ${distKm} km (${kcal} kcal)`);
-  };
-
-  const shortcutTemplateJson = JSON.stringify(
-    {
-      endpoint: `${apiBase}/integrations/ios-shortcut`,
-      method: "POST",
-      body: {
-        steps_count: "{{Pasos_Apple_Health}}",
-        active_kcal: "{{Energia_Activa_Kcal}}",
-        sleep_hours: "{{Horas_Sueno}}",
-        resting_hr_bpm: "{{FC_Reposo}}",
-        hrv_ms: "{{VFC_SDNN_ms}}",
-      },
-    },
-    null,
-    2
-  );
 
   return (
-    <div className="space-y-5">
-      {syncToast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="rounded-2xl border border-emerald-500/40 bg-emerald-500/15 p-3.5 text-xs font-bold text-emerald-200 flex items-center gap-2"
-        >
-          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-          <span>{syncToast}</span>
-        </div>
-      )}
-
-      {/* ====================================================================
-          SECCIÓN 1: MOTOR DE CARGA (ACWR) Y RECOMENDACIÓN DE DESCARGA (DELOAD)
-         ==================================================================== */}
-      <section className="rounded-3xl border border-slate-800 bg-slate-900/90 p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <HeartPulse className="h-5 w-5 text-emerald-400" />
-            <h3 className="text-base font-bold text-white">
-              Carga Aguda vs. Crónica (ACWR) y Recomendación de Descarga (Deload)
-            </h3>
+    <div className="space-y-6 max-w-4xl mx-auto pb-12">
+      {/* HEADER */}
+      <div className="rounded-2xl bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800/80 p-5 shadow-xl">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+              <Activity className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Descargas (Deload) & Recuperación</h2>
+              <p className="text-xs text-neutral-400">
+                Monitoreo de fatiga, distribución de carga muscular y biomarcadores
+              </p>
+            </div>
           </div>
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-extrabold ${
-              report.recommendation.urgency === "ALTA"
-                ? "bg-red-500/20 text-red-300 border border-red-500/40"
-                : report.recommendation.urgency === "MEDIA"
-                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-            }`}
-          >
-            {report.recommendation.deload_type.replace(/_/g, " ")} (Urgencia{" "}
-            {report.recommendation.urgency})
+          <span className={`text-xs px-3 py-1 rounded-full font-semibold border ${getStatusColor()}`}>
+            {report.recommendation.title}
           </span>
         </div>
 
-        {/* Métricas de Carga y División por Tren Corporal */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-2xl bg-slate-950/90 p-3.5 border border-slate-800">
-            <span className="text-[11px] text-slate-400 block">
-              Ratio Carga Aguda/Crónica (ACWR)
+        {/* ACWR & FATIGUE OVERVIEW */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-neutral-800/60">
+          <div className="bg-neutral-950/60 p-3 rounded-xl border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
+              Ratio ACWR
             </span>
-            <span className="text-xl font-black text-white mt-0.5 block">
-              {report.acwr_ratio}
-            </span>
-            <span className="text-[11px] text-emerald-400">
-              Aguda 7d: {report.acute_load_7d_au} AU | Crónica:{" "}
-              {report.chronic_load_28d_weekly_au} AU
-            </span>
+            <p className="text-xl font-black text-white mt-0.5">
+              {report.acwr_ratio ? report.acwr_ratio.toFixed(2) : '1.00'}
+            </p>
+            <p className="text-[10px] text-neutral-400">Aguda / Crónica</p>
           </div>
 
-          <div className="rounded-2xl bg-slate-950/90 p-3.5 border border-slate-800">
-            <span className="text-[11px] text-amber-400 block">
-              Carga Tren Inferior (7d)
+          <div className="bg-neutral-950/60 p-3 rounded-xl border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
+              Carga 7 Días
             </span>
-            <span className="text-xl font-black text-amber-400 mt-0.5 block">
-              {report.muscle_split_7d.lower_body_effective_sets} bloques
-            </span>
-            <span className="text-[11px] text-slate-400">
-              Running/Hyrox: {report.muscle_split_7d.running_km_7d} km @ RPE{" "}
-              {report.muscle_split_7d.avg_lower_rpe}
-            </span>
+            <p className="text-xl font-black text-cyan-400 mt-0.5">
+              {Math.round(report.acute_load_7d_au)} <span className="text-xs font-normal text-neutral-400">AU</span>
+            </p>
+            <p className="text-[10px] text-neutral-400">Volumen agudo</p>
           </div>
 
-          <div className="rounded-2xl bg-slate-950/90 p-3.5 border border-slate-800">
-            <span className="text-[11px] text-sky-400 block">
-              Carga Tren Superior (7d)
+          <div className="bg-neutral-950/60 p-3 rounded-xl border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
+              Carga Crónica (28d)
             </span>
-            <span className="text-xl font-black text-sky-400 mt-0.5 block">
-              {report.muscle_split_7d.upper_body_effective_sets} series
-            </span>
-            <span className="text-[11px] text-slate-400">
-              RPE medio barra: {report.muscle_split_7d.avg_upper_rpe}
-            </span>
+            <p className="text-xl font-black text-purple-400 mt-0.5">
+              {Math.round(report.chronic_load_28d_weekly_au)} <span className="text-xs font-normal text-neutral-400">AU</span>
+            </p>
+            <p className="text-[10px] text-neutral-400">Base adaptativa</p>
           </div>
 
-          <div className="rounded-2xl bg-slate-950/90 p-3.5 border border-slate-800">
-            <span className="text-[11px] text-emerald-400 block">
-              Recuperación Autonómica
+          <div className="bg-neutral-950/60 p-3 rounded-xl border border-neutral-800">
+            <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
+              Índice Recuperación
             </span>
-            <span className="text-xl font-black text-emerald-400 mt-0.5 block">
-              {report.autonomic_recovery.recovery_score_100} / 100
-            </span>
-            <span className="text-[11px] text-slate-400">
-              VFC: {hrvMs} ms • FC rep: {restingHrBpm} ppm
-            </span>
+            <p
+              className={`text-xl font-black mt-0.5 ${
+                report.autonomic_recovery.recovery_score_100 >= 70
+                  ? 'text-emerald-400'
+                  : report.autonomic_recovery.recovery_score_100 >= 50
+                  ? 'text-amber-400'
+                  : 'text-rose-400'
+              }`}
+            >
+              {Math.round(report.autonomic_recovery.recovery_score_100)}%
+            </p>
+            <p className="text-[10px] text-neutral-400">Estado fisiológico</p>
           </div>
         </div>
 
-        {/* Diagnóstico y Protocolo de Descarga (Deload) */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 space-y-2.5">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0" />
-            <h4 className="text-sm font-bold text-white">
-              {report.recommendation.title}
-            </h4>
-          </div>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            {report.recommendation.explanation}
-          </p>
-          <ul className="space-y-1.5 pt-1">
-            {report.recommendation.action_protocol.map((step, idx) => (
-              <li
-                key={idx}
-                className="text-xs text-emerald-300 flex items-start gap-2"
-              >
-                <span className="font-bold text-emerald-400">•</span>
-                <span>{step}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Controles de Biometría de Recuperación (Sueño, FC Reposo y VFC / HRV) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-2xl border border-slate-800 bg-slate-950/50 p-3.5">
-          <div>
-            <label
-              htmlFor="rec-sleep-range"
-              className="block text-xs text-slate-300 mb-1"
-            >
-              Horas de Sueño Hoy: <strong>{sleepHours} h</strong>
-            </label>
-            <input
-              id="rec-sleep-range"
-              name="sleep_hours"
-              type="range"
-              min={4.0}
-              max={10.0}
-              step={0.2}
-              value={sleepHours}
-              onChange={(e) =>
-                onUpdateRecoveryMarkers(
-                  Number(e.target.value),
-                  restingHrBpm,
-                  hrvMs
-                )
-              }
-              className="w-full"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="rec-rhr-range"
-              className="block text-xs text-slate-300 mb-1"
-            >
-              FC en Reposo: <strong>{restingHrBpm} ppm</strong>
-            </label>
-            <input
-              id="rec-rhr-range"
-              name="resting_hr_bpm"
-              type="range"
-              min={42}
-              max={85}
-              step={1}
-              value={restingHrBpm}
-              onChange={(e) =>
-                onUpdateRecoveryMarkers(
-                  sleepHours,
-                  Number(e.target.value),
-                  hrvMs
-                )
-              }
-              className="w-full"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="rec-hrv-range"
-              className="block text-xs text-slate-300 mb-1"
-            >
-              Variabilidad VFC (HRV): <strong>{hrvMs} ms</strong>
-            </label>
-            <input
-              id="rec-hrv-range"
-              name="hrv_ms"
-              type="range"
-              min={25}
-              max={120}
-              step={1}
-              value={hrvMs}
-              onChange={(e) =>
-                onUpdateRecoveryMarkers(
-                  sleepHours,
-                  restingHrBpm,
-                  Number(e.target.value)
-                )
-              }
-              className="w-full"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ====================================================================
-          SECCIÓN 2: INTEGRACIONES DEPORTIVAS VIABLES DESDE WEB PWA
-         ==================================================================== */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Conectores OAuth (Strava, Garmin, Oura/Whoop) */}
-        <div className="lg:col-span-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 space-y-3.5">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Activity className="h-4 w-4 text-emerald-400" />
-              Conexiones OAuth / API (Strava, Garmin, Oura)
-            </h3>
-            <span className="rounded-full bg-slate-800 px-2.5 py-0.5 text-[10px] font-bold text-slate-300">
-              Web PWA Compatible
-            </span>
-          </div>
-          <p className="text-xs text-slate-400">
-            Dado que Safari iOS no expone Apple Health directamente al navegador,
-            sincroniza tus relojes vía nube o importa archivos abajo.
-          </p>
-
-          <div className="space-y-2.5">
-            {[
-              {
-                id: "STRAVA",
-                name: "Strava (Running, Ciclismo & Desnivel)",
-                desc: "Importa entrenos, ritmo, FC y calorías activas",
-              },
-              {
-                id: "GARMIN",
-                name: "Garmin Connect (Fuerza, Carrera, Pasos & VFC)",
-                desc: "Sincroniza carga aguda, pasos diarios y sueño",
-              },
-              {
-                id: "OURA_WHOOP",
-                name: "Oura Ring / Whoop / Polar (VFC, Sueño & FC Reposo)",
-                desc: "Alimenta el motor de descargas (deload) con tu VFC",
-              },
-            ].map((prov) => (
-              <div
-                key={prov.id}
-                className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3 flex items-center justify-between gap-3"
-              >
-                <div>
-                  <p className="text-xs font-bold text-white">{prov.name}</p>
-                  <p className="text-[11px] text-slate-400">{prov.desc}</p>
-                  <span className="text-[10px] text-emerald-400 font-semibold">
-                    {connectedProviders[prov.id]
-                      ? `Conectado (${connectedProviders[prov.id]} sincronizaciones)`
-                      : "Listo para conectar"}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleSyncProvider(prov.id)}
-                  className="shrink-0 flex items-center gap-1 rounded-xl bg-emerald-500/20 border border-emerald-500/40 px-3 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  Sincronizar
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {/* Importador de Archivos Deportivos (.FIT, .GPX, .TCX, .CSV, Apple Health .XML) */}
-          <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/60 p-3.5 space-y-2">
-            <label
-              htmlFor="sport-file-upload"
-              className="flex items-center justify-between cursor-pointer"
-            >
-              <div className="flex items-center gap-2.5">
-                <Upload className="h-4 w-4 text-sky-400" />
-                <div>
-                  <span className="text-xs font-bold text-white block">
-                    Importar Archivo (.GPX, .TCX, .FIT, .CSV o Apple Health .XML)
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    Cálculo automático de distancia Haversine, desnivel, FC y pasos
-                  </span>
-                </div>
-              </div>
-              <span className="rounded-xl bg-sky-500/20 border border-sky-500/40 px-3 py-1.5 text-xs font-bold text-sky-300">
-                Subir Archivo
-              </span>
-              <input
-                id="sport-file-upload"
-                name="sport_file"
-                type="file"
-                accept=".gpx,.tcx,.fit,.csv,.xml,.zip"
-                onChange={handleFileUpload}
-                className="sr-only"
-              />
-            </label>
-          </div>
-        </div>
-
-        {/* Puente Atajos de iOS (Apple Shortcuts -> Apple Health) + Wrapper Capacitor */}
-        <div className="lg:col-span-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 space-y-3.5">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Smartphone className="h-4 w-4 text-sky-400" />
-              Puente Apple Health vía Atajos de iOS (Shortcuts)
-            </h3>
-            <span className="rounded-full bg-sky-500/20 px-2.5 py-0.5 text-[10px] font-bold text-sky-300">
-              Solución iPhone PWA
-            </span>
-          </div>
-
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Configura una automatización en la app <strong>Atajos (Shortcuts)</strong>{" "}
-            de tu iPhone para leer <em>Pasos, Sueño, FC en reposo y VFC</em> de{" "}
-            <strong>Apple Health</strong> y hacer un <code>POST</code> automático a
-            tu endpoint personal:
-          </p>
-
-          <div className="rounded-2xl bg-slate-950 p-3 border border-slate-800 text-[11px] font-mono text-emerald-300 overflow-x-auto">
-            <pre>{shortcutTemplateJson}</pre>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard?.writeText(shortcutTemplateJson);
-                setCopiedShortcut(true);
-                setTimeout(() => setCopiedShortcut(false), 2500);
-              }}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-xs font-bold text-slate-200 hover:border-emerald-500"
-            >
-              {copiedShortcut ? (
-                <Check className="h-4 w-4 text-emerald-400" />
-              ) : (
-                <Copy className="h-4 w-4 text-slate-400" />
+        {/* DELOAD RECOMMENDATION BANNER */}
+        {isDeload && (
+          <div className="mt-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            <div className="text-xs text-rose-200">
+              <strong className="font-bold text-white block mb-0.5">
+                {report.recommendation.title} (Prioridad {report.recommendation.urgency})
+              </strong>
+              {report.recommendation.explanation}
+              {report.recommendation.action_protocol.length > 0 && (
+                <ul className="list-disc list-inside mt-1.5 space-y-0.5 text-rose-100">
+                  {report.recommendation.action_protocol.map((step, idx) => (
+                    <li key={idx}>{step}</li>
+                  ))}
+                </ul>
               )}
-              {copiedShortcut ? "JSON Copiado" : "Copiar Plantilla Atajo iOS"}
-            </button>
+            </div>
+          </div>
+        )}
+      </div>
 
-            <button
-              type="button"
-              onClick={handleTriggerIosShortcutSync}
-              className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-emerald-400"
-            >
-              <Smartphone className="h-4 w-4" />
-              Probar Sincronización Atajo iOS Ahora
-            </button>
+      {/* APARTADO 1: DISTRIBUCIÓN DE CARGA POR NOMBRE (TREN SUPERIOR VS TREN INFERIOR) */}
+      <div className="rounded-2xl bg-neutral-900 border border-neutral-800/80 p-5 shadow-lg space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <Dumbbell className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                Distribución de Carga: Tren Superior vs Tren Inferior
+              </h3>
+              <p className="text-xs text-neutral-400">
+                Identificación calculada según las palabras clave en el nombre de cada entrenamiento
+              </p>
+            </div>
+          </div>
+          <span className="text-xs text-neutral-400 font-mono">Últimos 7 días</span>
+        </div>
+
+        {/* BARS & METRICS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* TREN SUPERIOR */}
+          <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-2 text-sky-400 font-semibold text-xs">
+                <ArrowUpCircle className="w-4 h-4" />
+                <span>Tren Superior</span>
+              </div>
+              <span className="text-xs font-bold text-sky-400">{split.upper_pct}%</span>
+            </div>
+            <div className="w-full bg-neutral-800 rounded-full h-2 overflow-hidden mb-2">
+              <div
+                className="bg-sky-400 h-2 rounded-full transition-all duration-500"
+                style={{ width: `${split.upper_pct}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-400">
+              <span>Pecho, Espalda, Hombros, Brazos, Torso</span>
+              <span className="text-white font-mono font-medium">{Math.round(split.upper_load_au)} AU</span>
+            </div>
           </div>
 
-          {/* Estado del Adaptador para Futuro Wrapper Nativo Capacitor */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 flex items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-purple-400 shrink-0" />
-              <span className="text-slate-300">
-                Arquitectura <code>HealthBridgeAdapter</code>:{" "}
-                <strong>{bridgeInfo.runtime}</strong> (Lista para Capacitor HealthKit)
+          {/* TREN INFERIOR */}
+          <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs">
+                <ArrowDownCircle className="w-4 h-4" />
+                <span>Tren Inferior</span>
+              </div>
+              <span className="text-xs font-bold text-emerald-400">{split.lower_pct}%</span>
+            </div>
+            <div className="w-full bg-neutral-800 rounded-full h-2 overflow-hidden mb-2">
+              <div
+                className="bg-emerald-400 h-2 rounded-full transition-all duration-500"
+                style={{ width: `${split.lower_pct}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-400">
+              <span>Pierna, Cuádriceps, Femoral, Glúteo, Gemelos</span>
+              <span className="text-white font-mono font-medium">{Math.round(split.lower_load_au)} AU</span>
+            </div>
+          </div>
+        </div>
+
+        {/* WORKOUT LIST WITH IDENTIFIED SPLIT BADGES */}
+        <div className="pt-2">
+          <p className="text-xs font-medium text-neutral-400 mb-2">
+            Entrenamientos clasificados por nombre ({split.classified_workouts.length}):
+          </p>
+          {split.classified_workouts.length === 0 ? (
+            <p className="text-xs text-neutral-400 italic py-2">
+              No hay entrenamientos registrados en los últimos 7 días.
+            </p>
+          ) : (
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              {split.classified_workouts.map((cw) => (
+                <div
+                  key={cw.id}
+                  className="flex items-center justify-between p-2.5 rounded-lg bg-neutral-950/70 border border-neutral-800/60 text-xs"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="font-semibold text-white truncate">{cw.title}</span>
+                    <span className="text-[10px] text-neutral-400">({cw.date})</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] text-neutral-400 font-mono">
+                      {Math.round(cw.load_au)} AU
+                    </span>
+                    {cw.category === 'TREN_INFERIOR' && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        {cw.category_label}
+                      </span>
+                    )}
+                    {cw.category === 'TREN_SUPERIOR' && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-500/15 text-sky-400 border border-sky-500/30">
+                        {cw.category_label}
+                      </span>
+                    )}
+                    {cw.category === 'FULL_BODY' && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                        {cw.category_label}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* APARTADO 2: SUEÑO Y FRECUENCIA CARDÍACA AL DESPERTAR (SECCIÓN INDEPENDIENTE) */}
+      <div className="rounded-2xl bg-neutral-900 border border-neutral-800/80 p-5 shadow-lg space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+            <Heart className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-white">
+              Marcadores de Recuperación Diaria
+            </h3>
+            <p className="text-xs text-neutral-400">
+              Ingresa tus horas de sueño y frecuencia cardíaca basal al despertar para modular la fatiga
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* HORAS DE SUEÑO */}
+          <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-2">
+            <label className="flex items-center gap-2 text-xs font-semibold text-neutral-300">
+              <Moon className="w-4 h-4 text-cyan-400" />
+              <span>Horas de Sueño</span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="24"
+                value={sleepInput}
+                onChange={(e) => setSleepInput(e.target.value)}
+                placeholder="Ej. 7.5"
+                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors"
+              />
+              <span className="absolute right-3 top-2.5 text-xs text-neutral-400 pointer-events-none">
+                horas
               </span>
             </div>
-            <span className="text-[10px] font-bold text-emerald-400">READY</span>
+            <p className="text-[11px] text-neutral-400">
+              Óptimo para hipertrofia y adaptación neuromuscular: 7.5 - 9.0 h.
+            </p>
+          </div>
+
+          {/* FRECUENCIA CARDÍACA AL DESPERTAR */}
+          <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-2">
+            <label className="flex items-center gap-2 text-xs font-semibold text-neutral-300">
+              <Heart className="w-4 h-4 text-rose-400" />
+              <span>Frecuencia Cardíaca al Despertar (FC Reposo)</span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                step="1"
+                min="35"
+                max="180"
+                value={restingHrInput}
+                onChange={(e) => setRestingHrInput(e.target.value)}
+                placeholder="Ej. 54"
+                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500 transition-colors"
+              />
+              <span className="absolute right-3 top-2.5 text-xs text-neutral-400 pointer-events-none">
+                ppm
+              </span>
+            </div>
+            <p className="text-[11px] text-neutral-400">
+              Una elevación sostenida de &gt;5-7 ppm sobre tu línea base indica fatiga parasimpática.
+            </p>
           </div>
         </div>
-      </section>
+
+        {/* SAVE BUTTON & FEEDBACK */}
+        <div className="flex items-center justify-between pt-2">
+          {saveSuccess ? (
+            <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Marcadores guardados y aplicados al cálculo de descarga</span>
+            </div>
+          ) : (
+            <span className="text-xs text-neutral-400">
+              Valores actuales: {report.autonomic_recovery.sleep_hours}h sueño · {report.autonomic_recovery.resting_hr_bpm} ppm FC reposo
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSaveMarkers}
+            disabled={savingMarkers}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold rounded-lg shadow-md transition-all disabled:opacity-50"
+          >
+            {savingMarkers ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
+            <span>{savingMarkers ? 'Guardando...' : 'Guardar Marcadores'}</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

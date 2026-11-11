@@ -149,7 +149,7 @@ export function WorkoutsTrackerView({
           }`}
         >
           <HeartPulse className="h-4 w-4" />
-          Descargas (Deload) & Sincronización
+          Descargas (Deload) & Recuperación
         </button>
       </div>
 

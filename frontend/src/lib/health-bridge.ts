@@ -20,6 +20,18 @@ export interface DynamicBudgetBreakdown {
   explanation: string;
 }
 
+export type MuscleSplitCategory = "TREN_INFERIOR" | "TREN_SUPERIOR" | "FULL_BODY";
+
+export interface ClassifiedWorkoutItem {
+  id: string;
+  title: string;
+  category: MuscleSplitCategory;
+  category_label: string;
+  load_au: number;
+  rpe: number;
+  date: string;
+}
+
 export interface RecoveryAndDeloadReport {
   acute_load_7d_au: number;
   chronic_load_28d_weekly_au: number;
@@ -29,9 +41,14 @@ export interface RecoveryAndDeloadReport {
   muscle_split_7d: {
     lower_body_effective_sets: number;
     upper_body_effective_sets: number;
+    lower_load_au: number;
+    upper_load_au: number;
+    lower_pct: number;
+    upper_pct: number;
     running_km_7d: number;
     avg_lower_rpe: number;
     avg_upper_rpe: number;
+    classified_workouts: ClassifiedWorkoutItem[];
   };
   autonomic_recovery: {
     recovery_score_100: number;
@@ -95,70 +112,221 @@ export function calculateDynamicBudgetClient(
 }
 
 /**
- * Calcula ACWR, Monotonía, Volumen por Tren Corporal (Inferior vs Superior)
- * y Recomendación de Descarga (Deload) integrando Sueño, FC en reposo y VFC (HRV).
+ * Clasifica un entrenamiento como Tren Inferior, Tren Superior o Full Body
+ * analizando rigurosamente las palabras clave en su nombre y modalidad.
+ */
+export function classifyWorkoutByTitle(
+  title: string,
+  modality: string
+): {
+  category: MuscleSplitCategory;
+  category_label: string;
+} {
+  const t = (title || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  // Modalidades de impacto de piernas por naturaleza
+  if (modality === "RUNNING" || modality === "TRAIL" || modality === "CYCLING") {
+    return {
+      category: "TREN_INFERIOR",
+      category_label: "Tren Inferior (Impacto Running/Cardio)",
+    };
+  }
+
+  // Palabras clave de tren inferior (piernas, glúteos, sentadillas, etc.)
+  const lowerKeywords = [
+    "pierna",
+    "piernas",
+    "leg",
+    "legs",
+    "sentadilla",
+    "sentadillas",
+    "squat",
+    "squats",
+    "cuadriceps",
+    "cuadrizeps",
+    "femoral",
+    "femorales",
+    "isquio",
+    "isquios",
+    "gluteo",
+    "gluteos",
+    "peso muerto",
+    "deadlift",
+    "pantorrilla",
+    "pantorrillas",
+    "gemelo",
+    "gemelos",
+    "prensa",
+    "zancada",
+    "zancadas",
+    "lunge",
+    "lunges",
+    "hip thrust",
+    "tren inferior",
+    "lower body",
+    "lower",
+  ];
+
+  // Palabras clave de tren superior (pecho, espalda, hombro, brazos)
+  const upperKeywords = [
+    "pecho",
+    "chest",
+    "banca",
+    "bench",
+    "espalda",
+    "back",
+    "remo",
+    "dorsal",
+    "dorsales",
+    "dominada",
+    "dominadas",
+    "pull up",
+    "pull",
+    "push",
+    "hombro",
+    "hombros",
+    "shoulder",
+    "shoulders",
+    "militar",
+    "deltoides",
+    "biceps",
+    "triceps",
+    "brazo",
+    "brazos",
+    "arm",
+    "arms",
+    "torso",
+    "upper body",
+    "upper",
+    "fondos",
+    "jalon",
+    "jalones",
+    "tren superior",
+  ];
+
+  const hasLower = lowerKeywords.some((k) => t.includes(k));
+  const hasUpper = upperKeywords.some((k) => t.includes(k));
+
+  if (hasLower && !hasUpper) {
+    return {
+      category: "TREN_INFERIOR",
+      category_label: "Tren Inferior (Piernas / Cadena Posterior)",
+    };
+  }
+  if (hasUpper && !hasLower) {
+    return {
+      category: "TREN_SUPERIOR",
+      category_label: "Tren Superior (Torso / Empuje / Tracción)",
+    };
+  }
+  if (hasLower && hasUpper) {
+    return {
+      category: "FULL_BODY",
+      category_label: "Full Body (Tren Superior e Inferior)",
+    };
+  }
+
+  // Detección de híbridos o cuerpo completo
+  if (
+    t.includes("fullbody") ||
+    t.includes("full body") ||
+    t.includes("cuerpo completo") ||
+    t.includes("hiit") ||
+    t.includes("crossfit") ||
+    t.includes("funcional") ||
+    modality === "HYROX"
+  ) {
+    return {
+      category: "FULL_BODY",
+      category_label: "Full Body (Cuerpo Completo / Híbrido)",
+    };
+  }
+
+  // Por defecto si no coincide
+  return {
+    category: "TREN_SUPERIOR",
+    category_label: "Tren Superior (Fuerza General)",
+  };
+}
+
+/**
+ * Calcula ACWR, Monotonía, Carga por Tren Corporal (Inferior vs Superior por nombre de entreno)
+ * y Recomendación de Descarga (Deload) integrando Sueño y FC en reposo al despertar.
  */
 export function calculateRecoveryAndDeloadClient(
   workouts: WorkoutSessionItem[],
   sleepHours: number,
   restingHrBpm: number,
-  hrvMs: number
+  hrvMs: number = 68
 ): RecoveryAndDeloadReport {
-  const lowerGroups = new Set([
-    "PIERNA",
-    "ISQUIOS_GLUTEOS",
-    "HYROX_FULL",
-    "QUADS",
-    "HAMSTRINGS",
-    "GLUTES",
-  ]);
-  const upperGroups = new Set([
-    "PECHO",
-    "ESPALDA",
-    "HOMBRO",
-    "BRAZO",
-    "CHEST",
-    "BACK",
-    "SHOULDERS",
-  ]);
-
   let acuteLoad7d = 0;
   let lowerSets = 0;
   let upperSets = 0;
+  let lowerLoadAu = 0;
+  let upperLoadAu = 0;
   let runningKm = 0;
   const lowerRpes: number[] = [];
   const upperRpes: number[] = [];
 
-  for (const w of workouts.slice(0, 7)) {
+  const classifiedWorkouts: ClassifiedWorkoutItem[] = [];
+
+  for (const w of workouts.slice(0, 10)) {
+    const classification = classifyWorkoutByTitle(w.title || "", w.modality);
     acuteLoad7d += w.internal_load_au;
-    if (w.modality === "RUNNING" || w.modality === "HYROX") {
-      runningKm += w.distance_km || 0;
-      lowerSets += Math.max(2, Math.round((w.distance_km || 5) * 0.6));
+
+    classifiedWorkouts.push({
+      id: w.id || `w-${w.session_date}-${Math.random()}`,
+      title: w.title || "Entrenamiento",
+      category: classification.category,
+      category_label: classification.category_label,
+      load_au: w.internal_load_au,
+      rpe: w.session_rpe,
+      date: w.session_date,
+    });
+
+    if (classification.category === "TREN_INFERIOR") {
+      lowerLoadAu += w.internal_load_au;
+      lowerSets += Math.max(3, w.strength_sets?.length || Math.round((w.duration_minutes || 45) / 10));
       lowerRpes.push(w.session_rpe);
-    }
-    for (const s of w.strength_sets || []) {
-      const g = (s.muscle_group || "PIERNA").toUpperCase();
-      if (lowerGroups.has(g)) {
-        lowerSets += 1;
-        lowerRpes.push(s.rpe);
-      } else if (upperGroups.has(g)) {
-        upperSets += 1;
-        upperRpes.push(s.rpe);
+      if (w.modality === "RUNNING" || w.modality === "HYROX") {
+        runningKm += w.distance_km || 0;
+      }
+    } else if (classification.category === "TREN_SUPERIOR") {
+      upperLoadAu += w.internal_load_au;
+      upperSets += Math.max(3, w.strength_sets?.length || Math.round((w.duration_minutes || 45) / 10));
+      upperRpes.push(w.session_rpe);
+    } else {
+      // Full body: divide la carga en 50% para cada tren
+      const halfLoad = Math.round(w.internal_load_au * 0.5);
+      lowerLoadAu += halfLoad;
+      upperLoadAu += halfLoad;
+      lowerSets += 2;
+      upperSets += 2;
+      lowerRpes.push(w.session_rpe);
+      upperRpes.push(w.session_rpe);
+      if (w.modality === "RUNNING" || w.modality === "HYROX") {
+        runningKm += w.distance_km || 0;
       }
     }
   }
+
+  const totalSplitLoad = Math.max(1, lowerLoadAu + upperLoadAu);
+  const lowerPct = Math.round((lowerLoadAu / totalSplitLoad) * 100);
+  const upperPct = Math.round((upperLoadAu / totalSplitLoad) * 100);
 
   const chronicWeeklyAvg = Math.max(1250, Math.round(acuteLoad7d * 0.88));
   const acwr = Number((acuteLoad7d / chronicWeeklyAvg).toFixed(2));
   const monotony = 1.48;
   const strain = Math.round(acuteLoad7d * monotony);
 
-  const sleepScore = Math.min(40, (sleepHours / 8.0) * 40);
-  const hrvScore = Math.min(35, (hrvMs / 75.0) * 35);
-  const rhrScore = Math.max(5, 25 - Math.max(0, restingHrBpm - 52) * 1.2);
-  const recoveryScore = Math.round(
-    Math.min(100, sleepScore + hrvScore + rhrScore)
-  );
+  // Puntuación de recuperación basada en Horas de Sueño y Frecuencia Cardíaca en reposo
+  const sleepScore = Math.min(60, (sleepHours / 8.0) * 60);
+  const rhrScore = Math.max(10, 40 - Math.max(0, restingHrBpm - 50) * 1.5);
+  const recoveryScore = Math.round(Math.min(100, sleepScore + rhrScore));
 
   const avgLowerRpe =
     lowerRpes.length > 0
@@ -176,46 +344,43 @@ export function calculateRecoveryAndDeloadClient(
   let deload_type: RecoveryAndDeloadReport["recommendation"]["deload_type"] =
     "RECUPERACION_OPTIMA";
   let urgency: "ALTA" | "MEDIA" | "BAJA" = "BAJA";
-  let title = "Carga Equilibrada (Sweet Spot de Adaptación)";
-  let explanation = `Ratio ACWR (${acwr}) en zona segura y recuperación autonómica en ${recoveryScore}/100 (VFC ${hrvMs} ms, FC reposo ${restingHrBpm} ppm).`;
+  let title = "Carga Equilibrada y en Rango Óptimo";
+  let explanation = `Ratio ACWR (${acwr}) en zona segura. Sueño de ${sleepHours}h y FC al despertar de ${restingHrBpm} ppm (Score de recuperación ${recoveryScore}/100).`;
   let action_protocol = [
-    "No requieres descarga esta semana: aplica sobrecarga progresiva controlada en básicos.",
-    "Programa semana de descarga general preventiva cada 4 a 5 semanas de bloque.",
+    "No requieres descarga obligatoria esta semana: puedes seguir con tu programación habitual.",
+    "Aplica sobrecarga progresiva controlada (añadir 1-2 kg o 1 repetición con técnica impecable).",
   ];
 
-  if (acwr > 1.38 || recoveryScore < 56 || sleepHours < 6.2 || hrvMs < 48) {
+  if (acwr > 1.38 || recoveryScore < 50 || sleepHours < 5.8) {
     deload_type = "DELOAD_GENERAL_SEMANA";
     urgency = "ALTA";
     title = "Se recomienda Semana de Descarga General (Fatiga Sistémica / SNC)";
-    explanation = `Marcadores de recuperación alterados (Score ${recoveryScore}/100, Sueño ${sleepHours}h, VFC ${hrvMs} ms, FC reposo ${restingHrBpm} ppm, ACWR ${acwr}).`;
+    explanation = `Carga aguda excesiva (${acuteLoad7d} AU, ACWR ${acwr}) y recuperación baja (Sueño ${sleepHours}h, FC reposo ${restingHrBpm} ppm).`;
     action_protocol = [
-      "Reduce un -40% el número total de series en gimnasio durante 6 días.",
-      "Trabaja a RPE 6.5–7 (dejando 3 repeticiones en recámara, cero fallos musculares).",
-      "Sustituye series de velocidad en running por Zona 1–2 y sesiones de movilidad.",
-      "Sube calorías al rango de mantenimiento durante 5 días para restaurar glucógeno y sistema nervioso.",
+      "Reduce un -40% a -50% el número total de series tanto en tren superior como inferior durante 6 días.",
+      "Trabaja a RPE 6.5–7 (dejando mínimo 3 repeticiones en recámara, sin llegar al fallo).",
+      "Prioriza dormir mínimo 7.5 a 8 horas para permitir la regeneración del sistema nervioso.",
     ];
-  } else if (
-    (lowerSets >= 11 && runningKm >= 14) ||
-    (lowerSets >= 14 && avgLowerRpe >= 8.2)
-  ) {
+  } else if (lowerLoadAu >= 1100 && lowerPct >= 60) {
     deload_type = "DELOAD_TREN_INFERIOR";
     urgency = "MEDIA";
-    title = "Descarga Específica de Tren Inferior (Piernas + Impacto de Running)";
-    explanation = `Acumulas ${lowerSets} bloques/series equivalentes de impacto en tren inferior (${runningKm.toFixed(1)} km de carrera/Hyrox + pesas a RPE ${avgLowerRpe}), mientras tu tren superior está fresco (${upperSets} series).`;
+    title = "Descarga Específica de Tren Inferior (Piernas / Carrera)";
+    explanation = `El ${lowerPct}% de tu carga semanal (${lowerLoadAu} AU) está concentrado en piernas/tren inferior según los nombres de tus entrenamientos. Tu tren superior está fresco (${upperLoadAu} AU, ${upperPct}%).`;
     action_protocol = [
-      "Tren Inferior: reduce -45% las series de sentadilla, peso muerto y prensa durante 5 días.",
-      "Running / Hyrox: cambia 1 sesión de asfalto por ciclismo suave o natación sin impacto.",
-      "Tren Superior: mantén tu volumen e intensidad normal en pecho, espalda y hombros.",
-      "Añade 20 min de liberación miofascial y movilidad de cadera/tobillo.",
+      "Tren Inferior: reduce -45% las series de sentadillas, peso muerto, prensa y zancadas durante 5 días.",
+      "Si corres: reduce el kilometraje de impacto un -40% o sustituye una salida por bicicleta suave.",
+      "Tren Superior: puedes continuar tu progresión normal en pecho, espalda y hombros.",
+      "Dedica 15 min diarios a movilidad de tobillo, cadera y estiramientos de isquios y cuádriceps.",
     ];
-  } else if (upperSets >= 15 && avgUpperRpe >= 8.4) {
+  } else if (upperLoadAu >= 1100 && upperPct >= 60) {
     deload_type = "DELOAD_TREN_SUPERIOR";
     urgency = "MEDIA";
-    title = "Descarga Específica de Tren Superior (Pectoral, Hombro y Tracción)";
-    explanation = `Alto volumen acumulado en tren superior (${upperSets} series a RPE medio ${avgUpperRpe}).`;
+    title = "Descarga Específica de Tren Superior (Torso / Empuje / Tracción)";
+    explanation = `El ${upperPct}% de tu carga semanal (${upperLoadAu} AU) está concentrado en pecho, espalda y hombros según los nombres de tus entrenamientos. Tu tren inferior está más descansado (${lowerLoadAu} AU, ${lowerPct}%).`;
     action_protocol = [
-      "Tren Superior: baja a 2 series por ejercicio a RPE 7 durante 5–7 días.",
-      "Tren Inferior y Running: continúa con tu plan de carrera y pierna sin cambios.",
+      "Tren Superior: baja a 2 series por ejercicio a RPE 6.5-7 en pecho, remos, jalones y hombros durante 5–7 días.",
+      "Tren Inferior: continúa con tu plan de piernas sin cambios.",
+      "Descansa las articulaciones de codos y hombros evitando fondos pesados y bloqueos forzados.",
     ];
   }
 
@@ -228,9 +393,14 @@ export function calculateRecoveryAndDeloadClient(
     muscle_split_7d: {
       lower_body_effective_sets: lowerSets,
       upper_body_effective_sets: upperSets,
+      lower_load_au: lowerLoadAu,
+      upper_load_au: upperLoadAu,
+      lower_pct: lowerPct,
+      upper_pct: upperPct,
       running_km_7d: Number(runningKm.toFixed(1)),
       avg_lower_rpe: avgLowerRpe,
       avg_upper_rpe: avgUpperRpe,
+      classified_workouts: classifiedWorkouts,
     },
     autonomic_recovery: {
       recovery_score_100: recoveryScore,
