@@ -101,8 +101,11 @@ export default function FitProIAPwaApp() {
           method: item.method,
           headers: { "Content-Type": "application/json", ...authH },
           body: JSON.stringify(item.payload),
+          signal: AbortSignal.timeout(6000),
         });
         if (res.ok) {
+          await clearOfflineMutation(item.mutationId);
+        } else if (res.status === 400 || res.status === 422) {
           await clearOfflineMutation(item.mutationId);
         }
       } catch {
@@ -482,6 +485,7 @@ export default function FitProIAPwaApp() {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authH },
         body: JSON.stringify(newProf),
+        signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) {
         const errText = await res.text().catch(() => "");

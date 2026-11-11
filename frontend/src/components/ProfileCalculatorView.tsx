@@ -152,11 +152,16 @@ export function ProfileCalculatorView({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveStatus("saving");
+    const safetyTimer = setTimeout(() => {
+      setSaveStatus((prev) => (prev === "saving" ? "offline" : prev));
+    }, 8500);
     try {
       await onSaveProfile(normalizedProfile);
+      clearTimeout(safetyTimer);
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 4000);
     } catch {
+      clearTimeout(safetyTimer);
       setSaveStatus("offline");
       setTimeout(() => setSaveStatus("idle"), 4000);
     }
