@@ -121,12 +121,12 @@ def test_api_endpoints_end_to_end():
         # 6. Chequeo corporal con recomposición activa (peso estable, cintura y % grasa bajan)
         checkin_payload = {
             "checkin_date": date.today().isoformat(),
-            "weight_kg": 76.3,
-            "body_fat_pct": 15.3,
+            "weight_kg": 76.0,
+            "body_fat_pct": 14.9,
             "bf_method": "PLIEGUES",
             "measurement_conditions": "AYUNAS_MANANA",
-            "waist_cm": 79.1,
-            "hip_cm": 94.8,
+            "waist_cm": 78.2,
+            "hip_cm": 94.5,
             "chest_cm": 103.8,
             "arm_cm": 38.0,
             "thigh_cm": 58.6,

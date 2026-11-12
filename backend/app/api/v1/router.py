@@ -1833,7 +1833,8 @@ def create_competition(
     tags=["Fase 4: Pipeline Reentrenamiento Visión IA"],
 )
 def trigger_vision_retraining_pipeline(
-    current_user: User = Depends(get_current_user),
+    compact: bool = Query(default=False),
+    current_user: User = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     predictions = db.query(AiFoodPrediction).all()
@@ -1858,6 +1859,13 @@ def trigger_vision_retraining_pipeline(
     db.add(run_row)
     db.commit()
     db.refresh(run_row)
+    if compact:
+        return {
+            "status": "COMPLETED",
+            "model": result["model_version_tag"],
+            "dataset": result["dataset_version_tag"],
+            "mape": result["overall_gram_mape_pct"],
+        }
     return result
 
 

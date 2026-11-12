@@ -199,6 +199,10 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/", tags=["Salud del Sistema"])
 @app.head("/", tags=["Salud del Sistema"])
+@app.get("/api/v1", tags=["Salud del Sistema"])
+@app.head("/api/v1", tags=["Salud del Sistema"])
+@app.get("/api/v1/", tags=["Salud del Sistema"])
+@app.head("/api/v1/", tags=["Salud del Sistema"])
 def root_check():
     body = b'{"status":"ok"}'
     return Response(
@@ -210,6 +214,8 @@ def root_check():
 
 @app.get("/health", tags=["Salud del Sistema"])
 @app.head("/health", tags=["Salud del Sistema"])
+@app.get("/api/v1/health", tags=["Salud del Sistema"])
+@app.head("/api/v1/health", tags=["Salud del Sistema"])
 def health_check():
     body = b'{"status":"ok","pwa_ios_ready":true}'
     return Response(
@@ -221,6 +227,8 @@ def health_check():
 
 @app.get("/ping", tags=["Salud del Sistema"])
 @app.head("/ping", tags=["Salud del Sistema"])
+@app.get("/api/v1/ping", tags=["Salud del Sistema"])
+@app.head("/api/v1/ping", tags=["Salud del Sistema"])
 def ping():
     """Endpoint ultra liviano (4 bytes) con Content-Length fijo para cron-job.org."""
     body = b"pong"
